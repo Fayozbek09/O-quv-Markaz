@@ -9,7 +9,16 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('settings.notificationsTitle'), robots: { index: false } };
 }
 
-const TYPES = ['LESSON_UPCOMING', 'ATTENDANCE_MISSED', 'PAYMENT_OVERDUE', 'MONTHLY_SUMMARY'] as const;
+/**
+ * Every type a person can actually receive. The server honours these on write
+ * (see lib/notifications/notify.ts), so anything it can send has to be listed
+ * here or the preference would exist without a way to set it.
+ */
+const TYPES = [
+  'LESSON_UPCOMING', 'LESSON_CANCELLED', 'LESSON_RESCHEDULED',
+  'ATTENDANCE_MISSED', 'HOMEWORK_ASSIGNED', 'GRADE_POSTED',
+  'PAYMENT_OVERDUE', 'ANNOUNCEMENT', 'MONTHLY_SUMMARY',
+] as const;
 
 export default async function NotificationSettingsPage() {
   const user = await requireUser();

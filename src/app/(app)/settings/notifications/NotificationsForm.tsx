@@ -11,13 +11,21 @@ import { Button } from '@/components/ui/Button';
 import { FormError } from '@/components/forms/AuthCard';
 import type { TKey } from '@/lib/i18n';
 
-type Type = 'LESSON_UPCOMING' | 'ATTENDANCE_MISSED' | 'PAYMENT_OVERDUE' | 'MONTHLY_SUMMARY';
+type Type =
+  | 'LESSON_UPCOMING' | 'LESSON_CANCELLED' | 'LESSON_RESCHEDULED'
+  | 'ATTENDANCE_MISSED' | 'HOMEWORK_ASSIGNED' | 'GRADE_POSTED'
+  | 'PAYMENT_OVERDUE' | 'ANNOUNCEMENT' | 'MONTHLY_SUMMARY';
 type Pref = { type: Type; inApp: boolean; telegram: boolean; email: boolean };
 
 const LABEL: Record<Type, TKey> = {
   LESSON_UPCOMING: 'notifications.lessonUpcoming',
+  LESSON_CANCELLED: 'notifications.lessonCancelled',
+  LESSON_RESCHEDULED: 'notifications.lessonRescheduled',
   ATTENDANCE_MISSED: 'notifications.attendanceMissed',
+  HOMEWORK_ASSIGNED: 'notifications.homeworkAssigned',
+  GRADE_POSTED: 'notifications.gradePosted',
   PAYMENT_OVERDUE: 'notifications.paymentOverdue',
+  ANNOUNCEMENT: 'notifications.announcement',
   MONTHLY_SUMMARY: 'notifications.monthlySummary',
 };
 

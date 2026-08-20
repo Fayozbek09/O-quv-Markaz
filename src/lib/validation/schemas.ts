@@ -309,7 +309,11 @@ export const notificationPrefSchema = z
     prefs: z
       .array(
         z.object({
-          type: z.enum(['LESSON_UPCOMING', 'ATTENDANCE_MISSED', 'PAYMENT_OVERDUE', 'MONTHLY_SUMMARY']),
+          type: z.enum([
+            'LESSON_UPCOMING', 'LESSON_CANCELLED', 'LESSON_RESCHEDULED',
+            'ATTENDANCE_MISSED', 'HOMEWORK_ASSIGNED', 'GRADE_POSTED',
+            'PAYMENT_OVERDUE', 'ANNOUNCEMENT', 'MONTHLY_SUMMARY',
+          ]),
           inApp: z.boolean(),
           telegram: z.boolean(),
           email: z.boolean(),
