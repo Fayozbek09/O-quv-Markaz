@@ -158,7 +158,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                 {lessons.map((lesson) => (
                   <tr key={lesson.id}>
                     <Td className="tnum whitespace-nowrap">
-                      {formatDate(lesson.startsAt, locale, { dateStyle: 'medium', timeStyle: 'short' }, org.timezone)}
+                      {formatDate(lesson.startsAt, locale, 'dateTime', org.timezone)}
                     </Td>
                     <Td>
                       <Badge tone={lesson.status === 'COMPLETED' ? 'ok' : lesson.status === 'CANCELLED' ? 'danger' : 'neutral'}>

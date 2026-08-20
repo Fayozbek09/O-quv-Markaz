@@ -83,6 +83,20 @@ test:
   fully paid invoice `OPEN`. Payments now apply to the oldest open charge for
   that student and group.
 - The skip link was labelled "Continue" instead of naming its destination.
+- **A browser could not log in during development.** The session cookie uses the
+  `__Host-` prefix, which requires the `Secure` attribute, but `Secure` was only
+  set in production - so Chrome silently discarded the cookie and every login
+  bounced straight back to the login page. The cookie is now always `Secure`
+  (browsers treat `http://localhost` as a trustworthy origin). The HTTP suite
+  had missed this because its cookie jar accepts anything; only a real browser
+  enforces the prefix rules, so an end-to-end login test was added.
+- **Uzbek dates rendered as `2026 M08 20, Thu`.** Chromium ships no `uz` locale
+  data, so `Intl` fell back to a root pattern in the browser while Node's full
+  ICU formatted correctly on the server. That broke the interface for the
+  primary market and caused a hydration mismatch. Uzbek dates and month names
+  are now composed from the dictionary; Russian and English still use `Intl`,
+  where the data is present everywhere.
+- The Next.js dev indicator covered the sidebar's Settings link.
 - `GET /api/reports?format=csv` returned 422. The strict query schema did not
   know about `format`, so the export button produced a validation error instead
   of a file. Found by driving the running application rather than by a test.

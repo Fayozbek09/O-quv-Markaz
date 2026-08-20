@@ -49,7 +49,7 @@ export default async function AttendancePage({
           lessonId={lesson.id}
           groupName={lesson.group.name}
           groupColor={lesson.group.color}
-          when={formatDate(lesson.startsAt, locale, { dateStyle: 'full', timeStyle: 'short' }, tz)}
+          when={formatDate(lesson.startsAt, locale, 'dateFullTime', tz)}
           students={lesson.group.members
             .filter((m) => m.student.status !== 'ARCHIVED')
             .map((m) => ({
@@ -85,7 +85,7 @@ export default async function AttendancePage({
     <>
       <PageHeader
         title={t('attendance.title')}
-        subtitle={formatDate(new Date(), locale, { dateStyle: 'full' }, tz)}
+        subtitle={formatDate(new Date(), locale, 'dateFull', tz)}
       />
 
       <Card>
@@ -104,7 +104,7 @@ export default async function AttendancePage({
                   className="flex items-center gap-3 px-4 py-3 hover:bg-surface-muted sm:px-5"
                 >
                   <span className="tnum w-12 shrink-0 text-[13px] font-medium text-ink-soft">
-                    {formatDate(lesson.startsAt, locale, { hour: '2-digit', minute: '2-digit', hour12: false }, tz)}
+                    {formatDate(lesson.startsAt, locale, 'time', tz)}
                   </span>
                   <Dot color={lesson.group.color} />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{lesson.group.name}</span>

@@ -103,14 +103,14 @@ export function CalendarView({
   }).format(new Date());
 
   const time = (iso: string) =>
-    formatDate(iso, locale, { hour: '2-digit', minute: '2-digit', hour12: false }, timeZone);
+    formatDate(iso, locale, 'time', timeZone);
 
   const headingLabel =
     view === 'day'
-      ? formatDate(`${anchor}T12:00:00Z`, locale, { dateStyle: 'full' }, 'UTC')
+      ? formatDate(`${anchor}T12:00:00Z`, locale, 'dateFull', 'UTC')
       : view === 'month'
-        ? formatDate(`${anchor}T12:00:00Z`, locale, { month: 'long', year: 'numeric' }, 'UTC')
-        : `${formatDate(`${range.from}T12:00:00Z`, locale, { day: 'numeric', month: 'short' }, 'UTC')} – ${formatDate(`${range.until}T12:00:00Z`, locale, { day: 'numeric', month: 'short', year: 'numeric' }, 'UTC')}`;
+        ? formatDate(`${anchor}T12:00:00Z`, locale, 'monthYear', 'UTC')
+        : `${formatDate(`${range.from}T12:00:00Z`, locale, 'dayMonth', 'UTC')} – ${formatDate(`${range.until}T12:00:00Z`, locale, 'date', 'UTC')}`;
 
   return (
     <>
@@ -230,7 +230,7 @@ export function CalendarView({
               <Card key={day} className={day === todayIso ? 'ring-1 ring-brand-500' : ''}>
                 <div className="flex items-baseline justify-between border-b border-line px-3.5 py-2">
                   <p className="text-[13px] font-semibold">
-                    {formatDate(`${day}T12:00:00Z`, locale, { weekday: 'short', day: 'numeric', month: 'short' }, 'UTC')}
+                    {formatDate(`${day}T12:00:00Z`, locale, 'weekdayDayMonth', 'UTC')}
                   </p>
                   {dayLessons.length > 0 && (
                     <span className="tnum text-[12px] text-ink-faint">{dayLessons.length}</span>

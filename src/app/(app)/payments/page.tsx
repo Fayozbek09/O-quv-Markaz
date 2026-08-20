@@ -130,7 +130,7 @@ export default async function PaymentsPage({
                   {payments.rows.map((payment) => (
                     <tr key={payment.id} className="hover:bg-surface-muted/50">
                       <Td className="tnum whitespace-nowrap text-ink-soft">
-                        {formatDate(payment.paidAt, locale, { dateStyle: 'medium' }, org.timezone)}
+                        {formatDate(payment.paidAt, locale, 'date', org.timezone)}
                       </Td>
                       <Td>
                         <Link href={`/students/${payment.student.id}`} className="font-medium hover:text-brand-600 hover:underline">

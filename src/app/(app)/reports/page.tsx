@@ -49,7 +49,7 @@ export default async function ReportsPage({
   const periodLabel = formatDate(
     `${year}-${String(month).padStart(2, '0')}-01T12:00:00Z`,
     locale,
-    { month: 'long', year: 'numeric' },
+    'monthYear',
     'UTC',
   );
 
@@ -62,7 +62,7 @@ export default async function ReportsPage({
           {t('reports.monthly')} — {periodLabel}
         </h3>
         <p className="text-[12px] text-ink-faint no-print">
-          {t('reports.generatedAt', { date: formatDate(now, locale, { dateStyle: 'medium' }, tz) })}
+          {t('reports.generatedAt', { date: formatDate(now, locale, 'date', tz) })}
         </p>
       </div>
 

@@ -78,7 +78,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-soft">
             {student.phone && <span className="tnum">{student.phone}</span>}
             {student.birthDate && (
-              <span>{formatDate(student.birthDate, locale, { dateStyle: 'medium' }, 'UTC')}</span>
+              <span>{formatDate(student.birthDate, locale, 'date', 'UTC')}</span>
             )}
             <Badge tone={student.status === 'ACTIVE' ? 'ok' : student.status === 'PAUSED' ? 'warn' : 'neutral'}>
               {student.status === 'ACTIVE'
@@ -189,7 +189,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                 {payments.map((p) => (
                   <tr key={p.id}>
                     <Td className="tnum whitespace-nowrap text-ink-soft">
-                      {formatDate(p.paidAt, locale, { dateStyle: 'medium' }, org.timezone)}
+                      {formatDate(p.paidAt, locale, 'date', org.timezone)}
                     </Td>
                     <Td className="text-ink-soft">{p.group?.name ?? '—'}</Td>
                     <Td>
@@ -227,7 +227,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                 {recentAttendance.map((a) => (
                   <tr key={a.id}>
                     <Td className="tnum whitespace-nowrap text-ink-soft">
-                      {formatDate(a.lesson.startsAt, locale, { dateStyle: 'medium', timeStyle: 'short' }, org.timezone)}
+                      {formatDate(a.lesson.startsAt, locale, 'dateTime', org.timezone)}
                     </Td>
                     <Td>
                       <span className="inline-flex items-center gap-2">

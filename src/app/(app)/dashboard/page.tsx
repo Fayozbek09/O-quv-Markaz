@@ -33,7 +33,7 @@ export default async function DashboardPage() {
 
   const money = (v: bigint) => formatMoney(v, org.defaultCurrency, INTL_LOCALE[locale]);
   const time = (d: Date) =>
-    formatDate(d, locale, { hour: '2-digit', minute: '2-digit', hour12: false }, tz);
+    formatDate(d, locale, 'time', tz);
 
   return (
     <>
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
         <div>
           <h2 className="text-lg font-semibold">{t('dashboard.greeting', { name: ctx.user.firstName })}</h2>
           <p className="mt-0.5 text-[13px] text-ink-soft">
-            {formatDate(new Date(), locale, { weekday: 'long', day: 'numeric', month: 'long' }, tz)}
+            {formatDate(new Date(), locale, 'weekdayDayMonthLong', tz)}
           </p>
         </div>
         <QuickActions />
@@ -194,7 +194,7 @@ export default async function DashboardPage() {
                   <Dot color={lesson.group.color} />
                   <span className="font-medium">{lesson.group.name}</span>
                   <span className="tnum text-ink-faint">
-                    {formatDate(lesson.startsAt, locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }, tz)}
+                    {formatDate(lesson.startsAt, locale, 'dayMonthTime', tz)}
                   </span>
                 </Link>
               ))}

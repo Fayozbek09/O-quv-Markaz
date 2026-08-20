@@ -48,7 +48,7 @@ export default async function SecuritySettingsPage() {
                   {session.userAgent ?? '—'}
                 </span>
                 <span className="tnum text-[12px] text-ink-faint">
-                  {t('auth.lastSeen')}: {formatDate(session.lastSeenAt, locale, { dateStyle: 'short', timeStyle: 'short' }, user.timezone)}
+                  {t('auth.lastSeen')}: {formatDate(session.lastSeenAt, locale, 'dateTimeShort', user.timezone)}
                 </span>
                 {session.id === user.sessionId && <Badge tone="brand">{t('auth.currentSession')}</Badge>}
               </li>

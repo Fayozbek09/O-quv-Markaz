@@ -16,7 +16,10 @@ async function waitForReady(timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${BASE_URL}/login`, { redirect: 'manual' });
+      const res = await fetch(`${BASE_URL}/login`, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(3000),
+      });
       if (res.status < 500) return;
     } catch {
       /* not up yet */
@@ -30,10 +33,15 @@ export async function setup() {
   // Reuse an instance left behind by a previous run rather than fighting it
   // for the port.
   try {
-    const probe = await fetch(`${BASE_URL}/login`, { redirect: 'manual' });
+    // Time-bounded: a wedged leftover process still holds the port but never
+    // answers, and an unbounded probe would hang the whole suite.
+    const probe = await fetch(`${BASE_URL}/login`, {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(3000),
+    });
     if (probe.status < 500) return;
   } catch {
-    /* nothing listening - start one */
+    /* nothing listening, or it is not answering - start our own */
   }
 
   const testEnv: Record<string, string> = {};

@@ -58,7 +58,7 @@ export default async function BillingSettingsPage() {
           {usage.subscription.currentPeriodEnd && (
             <p className="text-[13px] text-ink-soft">
               {t('reports.period')}:{' '}
-              {formatDate(usage.subscription.currentPeriodEnd, locale, { dateStyle: 'medium' }, org.timezone)}
+              {formatDate(usage.subscription.currentPeriodEnd, locale, 'date', org.timezone)}
             </p>
           )}
         </CardBody>

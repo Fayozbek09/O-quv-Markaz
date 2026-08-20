@@ -107,6 +107,15 @@ Locale resolution: explicit cookie → `Accept-Language` → Uzbek. It happens o
 the server, so the first HTML response is already in the right language and
 there is no flash of the wrong text.
 
+**Dates and month names for Uzbek are composed from the dictionary, not from
+`Intl`.** Chromium ships no `uz` locale data and renders `2026 M08 20, Thu`
+where Node's full ICU renders `payshanba, 20-avgust, 2026`. Relying on `Intl`
+therefore produced both a broken interface for the primary market and a
+hydration mismatch between server and client. `formatDate` takes a named format
+(`'date'`, `'dateFull'`, `'monthYear'`, …) rather than raw `Intl` options, so
+every call site is covered by the same guarantee. Russian and English continue
+to use `Intl`, where the data is reliable.
+
 ## Integration boundaries
 
 Each external system sits behind an interface with a driver that works offline:

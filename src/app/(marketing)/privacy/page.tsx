@@ -16,7 +16,7 @@ export default async function PrivacyPage() {
     <LegalDoc
       title={t('legal.privacyTitle')}
       lastUpdated={t('legal.lastUpdated', {
-        date: formatDate(`${LEGAL_LAST_UPDATED}T00:00:00Z`, locale, { dateStyle: 'long' }, 'UTC'),
+        date: formatDate(`${LEGAL_LAST_UPDATED}T00:00:00Z`, locale, 'dateLong', 'UTC'),
       })}
       doc={PRIVACY[locale]}
     />

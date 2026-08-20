@@ -63,7 +63,7 @@ export async function buildReminder(
       debtMinor: balance.debtMinor,
       currency: student.memberships[0]?.group.currency ?? org.defaultCurrency,
       teacherName,
-      periodLabel: formatDate(now, input.locale, { year: 'numeric', month: 'long' }, org.timezone),
+      periodLabel: formatDate(now, input.locale, 'monthYear', org.timezone),
     });
 
     return {
@@ -96,7 +96,7 @@ export async function buildReminder(
     when: formatDate(
       nextLesson.startsAt,
       input.locale,
-      { dateStyle: 'medium', timeStyle: 'short' },
+      'dateTime',
       org.timezone,
     ),
     room: nextLesson.room,
