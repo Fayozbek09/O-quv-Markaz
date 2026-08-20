@@ -40,12 +40,18 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     const bytes = await getObject(file.storageKey);
 
+    // An image has been decoded and re-encoded, so it is safe to show in place.
+    // Anything else — today that means PDF — is handed over as a download and
+    // never rendered as part of a page.
+    const isImage = file.mimeType.startsWith('image/');
+
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
-        // Only image/webp is ever stored, but the header set assumes the worst.
+        // Only image/webp and application/pdf are ever stored, but the header
+        // set assumes the worst.
         'content-type': file.mimeType,
         'content-length': String(bytes.byteLength),
-        'content-disposition': 'inline',
+        'content-disposition': isImage ? 'inline' : `attachment; filename="${file.id}.pdf"`,
         'x-content-type-options': 'nosniff',
         'content-security-policy': "default-src 'none'; sandbox",
         'cache-control': 'private, max-age=300, no-transform',

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
 import { processImageUpload } from '@/lib/files/image';
+import { processDocumentUpload } from '@/lib/files/document';
 import { newStorageKey, putObject, getObject, signFileUrl, verifyFileSignature } from '@/lib/files/storage';
 import { AppError } from '@/lib/errors';
 
@@ -139,5 +140,73 @@ describe('signed file URLs', () => {
     expect(verifyFileSignature(fileId, exp, `${sig.slice(0, -1)}0`)).toBe(false);
     expect(verifyFileSignature(fileId, exp, null)).toBe(false);
     expect(verifyFileSignature(fileId, null, sig)).toBe(false);
+  });
+});
+
+/**
+ * Homework attachments. Images reuse the pipeline above; PDF is the one format
+ * that is stored as it arrived, so it gets its own checks.
+ */
+describe('homework attachment validation', () => {
+  const pdf = (body = '1 0 obj\n<<>>\nendobj\n') =>
+    Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.from(body)]);
+
+  it('accepts a genuine PDF and keeps its bytes', async () => {
+    const result = await processDocumentUpload(asFile(pdf(), 'task.pdf', 'application/pdf'));
+    expect(result.mimeType).toBe('application/pdf');
+    expect(result.extension).toBe('.pdf');
+    expect(result.isImage).toBe(false);
+    expect(result.buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+  });
+
+  it('re-encodes an attached image rather than storing it as sent', async () => {
+    const result = await processDocumentUpload(asFile(await realPng(), 'photo.png', 'image/png'));
+    expect(result.mimeType).toBe('image/webp');
+    expect(result.isImage).toBe(true);
+  });
+
+  it('rejects a script that only claims to be a PDF', async () => {
+    const payload = Buffer.from('<?php system($_GET["c"]); ?>');
+    await expect(
+      processDocumentUpload(asFile(payload, 'shell.pdf', 'application/pdf')),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rejects a real PDF sent under a different extension', async () => {
+    await expect(
+      processDocumentUpload(asFile(pdf(), 'task.pdf.html', 'application/pdf')),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rejects SVG, which is a script container rather than an image', async () => {
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    await expect(
+      processDocumentUpload(asFile(svg, 'x.svg', 'image/svg+xml')),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rejects an Office document, which can carry macros', async () => {
+    const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
+    await expect(
+      processDocumentUpload(
+        asFile(zip, 'notes.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+      ),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rejects an oversized attachment before reading it', async () => {
+    const big = asFile(pdf(), 'big.pdf', 'application/pdf');
+    Object.defineProperty(big, 'size', { value: 50 * 1024 * 1024 });
+    await expect(processDocumentUpload(big)).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('never derives the stored name from the uploaded one', async () => {
+    const result = await processDocumentUpload(
+      asFile(pdf(), '../../../etc/passwd.pdf', 'application/pdf'),
+    );
+    const key = newStorageKey('org/abc/homework', result.extension);
+    expect(key).not.toContain('..');
+    expect(key).not.toContain('passwd');
+    expect(key.endsWith('.pdf')).toBe(true);
   });
 });

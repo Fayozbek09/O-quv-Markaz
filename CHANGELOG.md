@@ -16,6 +16,27 @@ versioning follows [Semantic Versioning](https://semver.org/).
   releases its slot, back-to-back lessons are allowed, and a lesson never
   conflicts with itself when edited. The error names which of the three clashed,
   in all three languages.
+- **Profile photos.** `POST /api/uploads/avatar` sets the signed-in account's
+  own photo — every role, students included — or a student's photo when staff
+  send a `studentId` and hold `students.update`. The student is resolved inside
+  the caller's centre, so an id from another centre is a 404 rather than a
+  cross-tenant write. A student's account profile and student record are pointed
+  at the same file, the replaced photo is soft-deleted and its bytes removed,
+  and the image goes through the same decode / strip / re-encode pipeline as the
+  centre logo. Wired into profile settings, the student detail page and the
+  student portal.
+- **Homework attachments, end to end.** The domain already accepted `fileIds`
+  and submissions already had a `fileId`, but nothing could create those files.
+  `POST /api/uploads/attachment` now does: images are re-encoded, PDFs are
+  accepted only when the declared type, the extension and the leading `%PDF-`
+  bytes all agree, and Office formats and SVG are refused outright. A stored PDF
+  is served as a download inside a sandbox, never rendered in the page. Teachers
+  attach files when setting homework; students attach one when handing in, with
+  an optional note.
+- A per-user upload rate bucket, and the lapsed-subscription write gate applied
+  explicitly to both upload routes — they are hand-rolled rather than wrapped in
+  `orgMutation`, so they would otherwise have skipped it.
+
 - **Lesson change notifications.** Cancelling a lesson, or moving it to another
   time, writes an in-app notification to every active student in the group.
   Re-cancelling an already cancelled lesson does not notify twice, editing a

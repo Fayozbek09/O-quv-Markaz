@@ -150,6 +150,20 @@ describe('suspension holds writes but destroys nothing', () => {
     const overrideCtx = { ...tenant.ctx, isOverride: true };
     await expect(assertSubscriptionWritable(overrideCtx, 'students.create')).resolves.toBeNull();
   });
+
+  /**
+   * The upload endpoints are hand-rolled rather than wrapped in `orgMutation`,
+   * so they have to apply this gate themselves. These pin the permissions they
+   * pass, which is what decides whether a suspended centre is held.
+   */
+  it('holds a homework attachment but not a personal photo', async () => {
+    await expect(assertSubscriptionWritable(tenant.ctx, 'homework.write')).rejects.toMatchObject({
+      status: 402,
+    });
+    await expect(assertSubscriptionWritable(tenant.ctx, 'students.update')).rejects.toMatchObject({
+      status: 402,
+    });
+  });
 });
 
 describe('payment', () => {

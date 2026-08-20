@@ -262,6 +262,7 @@ export const ru: Dictionary = {
   settings: {
     title: 'Настройки',
     profileTitle: 'Профиль', profileSubtitle: 'Ваши личные данные',
+    photo: 'Фото', changePhoto: 'Изменить фото',
     workspaceTitle: 'Рабочее пространство', workspaceSubtitle: 'Название центра, логотип и умолчания',
     notificationsTitle: 'Уведомления', notificationsSubtitle: 'Выберите, о чём вас уведомлять',
     securityTitle: 'Безопасность', securitySubtitle: 'Пароль, сессии и аккаунт',
@@ -419,7 +420,7 @@ export const ru: Dictionary = {
   homework: {
     title: 'Домашние задания', add: 'Задать задание', edit: 'Изменить задание',
     homeworkTitle: 'Заголовок', description: 'Задание', due: 'Срок',
-    group: 'Группа', maxScore: 'Максимальный балл', attachments: 'Вложения',
+    group: 'Группа', maxScore: 'Максимальный балл', attachments: 'Вложения', note: 'Заметка',
     status: 'Статус', DRAFT: 'Черновик', PUBLISHED: 'Выдано', CLOSED: 'Закрыто',
     submissions: 'Сдачи', ASSIGNED: 'Выдано', SUBMITTED: 'Сдано',
     LATE: 'С опозданием', MISSING: 'Не сдано', GRADED: 'Оценено',

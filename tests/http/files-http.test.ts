@@ -159,3 +159,165 @@ describe('upload endpoint', () => {
     expect(stored.storageKey).not.toContain('logo.png');
   });
 });
+
+/**
+ * Profile photos and homework attachments. Both endpoints mint a file and hand
+ * back its id, so the interesting questions are who may call them and whose
+ * centre the resulting row lands in.
+ */
+describe('avatar and attachment uploads', () => {
+  const png = () =>
+    sharp({ create: { width: 64, height: 64, channels: 3, background: '#2f62d8' } })
+      .png()
+      .toBuffer();
+
+  const imageForm = async (name = 'me.png') => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(await png())], name, { type: 'image/png' }));
+    return form;
+  };
+
+  it('refuses an unauthenticated avatar upload', async () => {
+    const res = await new Session().fetch('/api/uploads/avatar', {
+      method: 'POST',
+      body: await imageForm(),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses an avatar upload without a CSRF token', async () => {
+    const res = await aliceSession.fetch('/api/uploads/avatar', {
+      method: 'POST',
+      body: await imageForm(),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('sets the caller’s own photo and points the profile at it', async () => {
+    const res = await aliceSession.fetch('/api/uploads/avatar', {
+      method: 'POST',
+      body: await imageForm(),
+      csrf: true,
+    });
+    expect(res.status).toBe(201);
+
+    const body = (await res.json()) as { fileId: string };
+    const profile = await db.profile.findUniqueOrThrow({ where: { userId: alice.user.id } });
+    expect(profile.avatarFileId).toBe(body.fileId);
+
+    const stored = await db.file.findUniqueOrThrow({ where: { id: body.fileId } });
+    expect(stored.kind).toBe('USER_AVATAR');
+    expect(stored.mimeType).toBe('image/webp');
+  });
+
+  it('soft-deletes the photo it replaces', async () => {
+    const first = (await (
+      await aliceSession.fetch('/api/uploads/avatar', {
+        method: 'POST',
+        body: await imageForm(),
+        csrf: true,
+      })
+    ).json()) as { fileId: string };
+
+    await aliceSession.fetch('/api/uploads/avatar', {
+      method: 'POST',
+      body: await imageForm(),
+      csrf: true,
+    });
+
+    const old = await db.file.findUniqueOrThrow({ where: { id: first.fileId } });
+    expect(old.deletedAt).not.toBeNull();
+  });
+
+  it("will not set a photo on a student in someone else's centre", async () => {
+    const theirs = await db.student.create({
+      data: { organizationId: bob.org.id, firstName: 'Bobs', lastName: 'Student' },
+    });
+
+    const form = await imageForm();
+    form.append('studentId', theirs.id);
+
+    const res = await aliceSession.fetch('/api/uploads/avatar', {
+      method: 'POST',
+      body: form,
+      csrf: true,
+    });
+    expect(res.status).toBe(404);
+
+    const after = await db.student.findUniqueOrThrow({ where: { id: theirs.id } });
+    expect(after.avatarFileId).toBeNull();
+  });
+
+  it('treats a malformed student id as not found rather than a crash', async () => {
+    const form = await imageForm();
+    form.append('studentId', 'not-a-uuid');
+
+    const res = await aliceSession.fetch('/api/uploads/avatar', {
+      method: 'POST',
+      body: form,
+      csrf: true,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('stores a homework attachment in the uploader’s centre and serves it as a download', async () => {
+    const pdf = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.from('1 0 obj\n<<>>\nendobj\n')]);
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(pdf)], 'task.pdf', { type: 'application/pdf' }));
+
+    const res = await aliceSession.fetch('/api/uploads/attachment', {
+      method: 'POST',
+      body: form,
+      csrf: true,
+    });
+    expect(res.status).toBe(201);
+
+    const body = (await res.json()) as { fileId: string; url: string; mimeType: string };
+    expect(body.mimeType).toBe('application/pdf');
+
+    const stored = await db.file.findUniqueOrThrow({ where: { id: body.fileId } });
+    expect(stored.organizationId).toBe(alice.org.id);
+    expect(stored.kind).toBe('HOMEWORK_ATTACHMENT');
+
+    const fetched = await aliceSession.fetch(body.url);
+    expect(fetched.status).toBe(200);
+    // A PDF is never rendered in place.
+    expect(fetched.headers.get('content-disposition')).toMatch(/^attachment/);
+    expect(fetched.headers.get('content-security-policy')).toContain('sandbox');
+    expect(fetched.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+
+  it('refuses a script dressed up as a PDF', async () => {
+    const form = new FormData();
+    form.append(
+      'file',
+      new File([new Uint8Array(Buffer.from('<?php system($_GET["c"]); ?>'))], 'shell.pdf', {
+        type: 'application/pdf',
+      }),
+    );
+
+    const res = await aliceSession.fetch('/api/uploads/attachment', {
+      method: 'POST',
+      body: form,
+      csrf: true,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("does not let one centre read another centre's attachment", async () => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(await png())], 'note.png', { type: 'image/png' }));
+
+    const bobSession = await login(bob);
+    const created = (await (
+      await bobSession.fetch('/api/uploads/attachment', {
+        method: 'POST',
+        body: form,
+        csrf: true,
+      })
+    ).json()) as { fileId: string; url: string };
+
+    const res = await aliceSession.fetch(created.url);
+    expect(res.status).toBe(404);
+  });
+});

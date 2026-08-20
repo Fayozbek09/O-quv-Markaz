@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TextField, SelectField, TextAreaField } from '@/components/ui/Field';
 import { FormError } from '@/components/forms/AuthCard';
+import { AttachmentPicker, type PickedFile } from '@/components/forms/AttachmentPicker';
 
 /** Sets homework for one group; every student in it gets a submission row. */
 export function HomeworkDialog({ groups }: { groups: Array<{ id: string; name: string }> }) {
@@ -19,6 +20,7 @@ export function HomeworkDialog({ groups }: { groups: Array<{ id: string; name: s
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [files, setFiles] = useState<PickedFile[]>([]);
   const [form, setForm] = useState({
     groupId: groups[0]?.id ?? '',
     title: '',
@@ -45,11 +47,12 @@ export function HomeworkDialog({ groups }: { groups: Array<{ id: string; name: s
           dueAt: new Date(form.dueAt).toISOString(),
           status: 'PUBLISHED',
           maxScore: form.maxScore ? Number(form.maxScore) : undefined,
-          fileIds: [],
+          fileIds: files.map((f) => f.fileId),
         },
       });
       setOpen(false);
       setForm({ ...form, title: '', description: '', dueAt: '', maxScore: '' });
+      setFiles([]);
       router.refresh();
     } catch (err) {
       setError(messageFor(t, err));
@@ -80,6 +83,7 @@ export function HomeworkDialog({ groups }: { groups: Array<{ id: string; name: s
             <TextField label={t('homework.due')} value={form.dueAt} onChange={set('dueAt')} type="datetime-local" required />
             <TextField label={t('homework.maxScore')} value={form.maxScore} onChange={set('maxScore')} inputMode="numeric" />
           </div>
+          <AttachmentPicker value={files} onChange={setFiles} />
           <div className="mt-1 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               {t('common.cancel')}

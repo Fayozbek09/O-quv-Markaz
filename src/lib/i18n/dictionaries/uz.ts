@@ -260,6 +260,7 @@ export const uz: Dictionary = {
   settings: {
     title: 'Sozlamalar',
     profileTitle: 'Profil', profileSubtitle: "Shaxsiy ma'lumotlaringiz",
+    photo: 'Rasm', changePhoto: "Rasmni o'zgartirish",
     workspaceTitle: 'Ish maydoni', workspaceSubtitle: 'Markaz nomi, logotip va standart qiymatlar',
     notificationsTitle: 'Bildirishnomalar', notificationsSubtitle: 'Nima haqida xabar olishni tanlang',
     securityTitle: 'Xavfsizlik', securitySubtitle: 'Parol, seanslar va hisob',
@@ -417,7 +418,7 @@ export const uz: Dictionary = {
   homework: {
     title: 'Uyga vazifa', add: 'Vazifa berish', edit: 'Vazifani tahrirlash',
     homeworkTitle: 'Sarlavha', description: 'Topshiriq', due: 'Muddat',
-    group: 'Guruh', maxScore: 'Maksimal ball', attachments: 'Ilovalar',
+    group: 'Guruh', maxScore: 'Maksimal ball', attachments: 'Ilovalar', note: 'Izoh',
     status: 'Holat', DRAFT: 'Qoralama', PUBLISHED: 'Berilgan', CLOSED: 'Yopilgan',
     submissions: 'Topshiriqlar', ASSIGNED: 'Berilgan', SUBMITTED: 'Topshirildi',
     LATE: 'Kechikdi', MISSING: 'Topshirilmadi', GRADED: 'Baholandi',

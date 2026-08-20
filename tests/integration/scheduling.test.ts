@@ -183,7 +183,7 @@ describe('lesson change notifications', () => {
     });
 
     const created = await createLesson(tenant.ctx, lesson({ date: '2027-04-03' }), TZ);
-    await setLessonStatus(tenant.ctx, created.id, { status: 'CANCELLED' });
+    await setLessonStatus(tenant.ctx, created.id, { status: 'CANCELLED', cancelReason: null });
 
     expect(
       await db.notification.count({

@@ -14,6 +14,8 @@ import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Stat, StatGrid } from '@/components/ui/Stat';
 import { Badge, Dot } from '@/components/ui/Badge';
 import { TableWrap, Th, Td, EmptyState } from '@/components/ui/Table';
+import { AvatarUploader } from '@/components/forms/AvatarUploader';
+import { signFileUrl } from '@/lib/files/storage';
 import { StudentDetailActions } from './StudentDetailActions';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -77,7 +79,17 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
       </nav>
 
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="flex items-start gap-3">
+          {ctx.permissions.has('students.update') && (
+            <AvatarUploader
+              studentId={student.id}
+              name={fullName}
+              currentUrl={
+                student.avatarFileId ? signFileUrl(student.avatarFileId, 30 * 60_000) : null
+              }
+            />
+          )}
+          <div>
           <h2 className="text-lg font-semibold">{fullName}</h2>
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-soft">
             {student.phone && <span className="tnum">{student.phone}</span>}
@@ -91,6 +103,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                   ? t('students.statusPaused')
                   : t('students.statusArchived')}
             </Badge>
+          </div>
           </div>
         </div>
 

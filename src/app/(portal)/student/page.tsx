@@ -9,6 +9,9 @@ import { getLocale, getTranslator } from '@/lib/i18n/server';
 import { formatMoney } from '@/lib/money';
 import { formatDate, formatPercent } from '@/lib/i18n';
 import { INTL_LOCALE } from '@/lib/i18n/config';
+import { AvatarUploader } from '@/components/forms/AvatarUploader';
+import { AttachmentList } from '@/components/ui/AttachmentList';
+import { signFileUrl } from '@/lib/files/storage';
 import { Stat, StatGrid } from '@/components/ui/Stat';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Badge, Dot } from '@/components/ui/Badge';
@@ -58,14 +61,20 @@ export default async function StudentPage() {
 
   return (
     <>
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-ink">
-          {[sc.firstName, sc.lastName].filter(Boolean).join(' ')}
-        </h2>
-        <p className="mt-0.5 text-[13px] text-ink-soft">
-          {org?.name}
-          {sc.studentNo ? ` · ${t('student.studentId')} ${sc.studentNo}` : ''}
-        </p>
+      <div className="mb-4 flex items-center gap-3">
+        <AvatarUploader
+          name={[sc.firstName, sc.lastName].filter(Boolean).join(' ')}
+          currentUrl={sc.avatarFileId ? signFileUrl(sc.avatarFileId, 30 * 60_000) : null}
+        />
+        <div>
+          <h2 className="text-lg font-semibold text-ink">
+            {[sc.firstName, sc.lastName].filter(Boolean).join(' ')}
+          </h2>
+          <p className="mt-0.5 text-[13px] text-ink-soft">
+            {org?.name}
+            {sc.studentNo ? ` · ${t('student.studentId')} ${sc.studentNo}` : ''}
+          </p>
+        </div>
       </div>
 
       <StatGrid className="mb-6">
@@ -202,6 +211,14 @@ export default async function StudentPage() {
                       {row.homework.group.name} · {t('homework.due')}{' '}
                       {formatDate(row.homework.dueAt, locale, 'dayMonthTime', tz)}
                     </span>
+                    {row.homework.attachments.length > 0 && (
+                      <span className="mt-1.5 block">
+                        <AttachmentList
+                          items={row.homework.attachments}
+                          label={t('homework.attachments')}
+                        />
+                      </span>
+                    )}
                   </span>
                   {row.score !== null && (
                     <Badge tone="brand">

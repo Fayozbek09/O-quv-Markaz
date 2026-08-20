@@ -252,6 +252,7 @@ export const en = {
   settings: {
     title: 'Settings',
     profileTitle: 'Profile', profileSubtitle: 'Your personal details',
+    photo: 'Photo', changePhoto: 'Change photo',
     workspaceTitle: 'Workspace', workspaceSubtitle: 'Centre name, logo and defaults',
     notificationsTitle: 'Notifications', notificationsSubtitle: 'Choose what you want to be told about',
     securityTitle: 'Security', securitySubtitle: 'Password, sessions and account',
@@ -405,7 +406,7 @@ export const en = {
   homework: {
     title: 'Homework', add: 'Set homework', edit: 'Edit homework',
     homeworkTitle: 'Title', description: 'Instructions', due: 'Due',
-    group: 'Group', maxScore: 'Maximum score', attachments: 'Attachments',
+    group: 'Group', maxScore: 'Maximum score', attachments: 'Attachments', note: 'Note',
     status: 'Status', DRAFT: 'Draft', PUBLISHED: 'Published', CLOSED: 'Closed',
     submissions: 'Submissions', ASSIGNED: 'Assigned', SUBMITTED: 'Handed in',
     LATE: 'Late', MISSING: 'Missing', GRADED: 'Graded',

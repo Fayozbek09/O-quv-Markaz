@@ -6,6 +6,7 @@ import { orgTimezone } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
 import { formatDate } from '@/lib/i18n';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
+import { AttachmentList } from '@/components/ui/AttachmentList';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/Table';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -37,12 +38,15 @@ export default async function HomeworkDetailPage({ params }: { params: Promise<{
         actions={<Badge tone={homework.status === 'PUBLISHED' ? 'ok' : 'neutral'}>{t(`homework.${homework.status}`)}</Badge>}
       />
 
-      {homework.description && (
+      {(homework.description || homework.attachments.length > 0) && (
         <Card className="mb-4">
           <CardHeader title={t('homework.description')} />
-          <CardBody>
+          <CardBody className="flex flex-col gap-3">
             {/* Rendered as text, never as markup. */}
-            <p className="whitespace-pre-wrap text-[14px] text-ink-soft">{homework.description}</p>
+            {homework.description && (
+              <p className="whitespace-pre-wrap text-[14px] text-ink-soft">{homework.description}</p>
+            )}
+            <AttachmentList items={homework.attachments} label={t('homework.attachments')} />
           </CardBody>
         </Card>
       )}

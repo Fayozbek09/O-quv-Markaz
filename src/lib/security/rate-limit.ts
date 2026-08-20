@@ -23,6 +23,9 @@ export const RATE_RULES = {
   'telegram:send:org': { limit: 60, windowMs: 60 * 60_000 },
   'telegram:send:student': { limit: 2, windowMs: 24 * 60 * 60_000 },
   'upload:org': { limit: 60, windowMs: 60 * 60_000 },
+  // A profile photo or a homework attachment is a per-person action, so the
+  // bucket follows the person rather than the centre.
+  'upload:user': { limit: 20, windowMs: 60 * 60_000 },
   'api:write:user': { limit: 300, windowMs: 60_000 },
   'billing:intent:org': { limit: 10, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateRule>;
