@@ -311,7 +311,7 @@ the database password.
 | **A03 Injection** | Parameterized queries throughout; React escaping; CSP; CSV formula neutralization |
 | **A04 Insecure Design** | Immutable payment ledger, consent-based messaging, provider that cannot fake success, archive-not-delete |
 | **A05 Security Misconfiguration** | Full header set, no `x-powered-by`, env validated at startup, restrictive CORS |
-| **A06 Vulnerable Components** | Small dependency surface; `npm audit` in the release checklist |
+| **A06 Vulnerable Components** | Small dependency surface; `npm audit` reports 0 vulnerabilities. `overrides` in `package.json` pin `sharp`, `postcss` and `deepmerge-ts` to patched versions inside transitive trees |
 | **A07 Auth Failures** | Rate limits, single-use OTPs, session rotation, uniform error messages |
 | **A08 Integrity Failures** | Webhook signature verification, idempotency, amount reconciliation |
 | **A09 Logging Failures** | Audit log with redaction; secrets never logged |
@@ -342,6 +342,10 @@ storage, and formal cryptographic key rotation automation.
 - **No CAPTCHA.** Registration is rate limited per IP but not challenged.
 - **The `manual` payment provider cannot complete a purchase.** This is
   deliberate; a real provider must be configured before charging anyone.
+- **Dependency pinning via `overrides`.** `sharp`, `postcss` and `deepmerge-ts`
+  are forced to patched versions because framework packages ship older copies.
+  Re-check these after every framework upgrade: an override can silently hold a
+  package back as well as forward.
 
 ---
 

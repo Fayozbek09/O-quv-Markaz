@@ -2,7 +2,7 @@
   "name": "ustozly",
   "version": "0.1.0",
   "private": true,
-  "description": "Ustozly — repetitorning raqamli ish daftari",
+  "description": "Ustozly \u2014 repetitorning raqamli ish daftari",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
@@ -57,5 +57,10 @@
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "sharp": "^0.35.3",
+    "postcss": "^8.5.26",
+    "deepmerge-ts": "^8.0.0"
   }
 }

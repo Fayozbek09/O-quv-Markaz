@@ -43,7 +43,8 @@ hosting, no course catalogue, no student social feed.
 ## Quick start
 
 ```bash
-# 1. Database (Docker)
+# 1. Database (Docker) - local development only; the container
+#    credentials in this script are not used anywhere else
 npm run db:up
 
 # 2. Install and generate

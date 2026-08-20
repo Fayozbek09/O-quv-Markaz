@@ -254,7 +254,7 @@ from Settings → Security.
 - [ ] Upload directory persistent, writable, not web-served
 - [ ] Backups configured and a restore tested
 - [ ] `npm test` green against a staging database
-- [ ] `npm audit` reviewed
+- [ ] `npm audit` clean (the repo ships `overrides` that keep it at zero)
 - [ ] Privacy Policy and Terms updated with real contact details
 - [ ] Data residency table above filled in
 - [ ] Housekeeping job scheduled (`purgeExpiredOtps`, `purgeExpiredRateLimits`)

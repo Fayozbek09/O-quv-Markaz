@@ -83,6 +83,10 @@ test:
   fully paid invoice `OPEN`. Payments now apply to the oldest open charge for
   that student and group.
 - The skip link was labelled "Continue" instead of naming its destination.
+- `npm audit` reported six high-severity issues from older `sharp`, `postcss`
+  and `deepmerge-ts` copies nested inside framework packages. `overrides` now
+  pin all three to patched versions; the audit is clean. The image pipeline
+  already resolved the patched `sharp`, but the nested copy is now gone too.
 
 ### Known limitations
 
