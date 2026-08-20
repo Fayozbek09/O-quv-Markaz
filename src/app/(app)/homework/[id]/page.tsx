@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { requireOrg, assertPermission } from '@/lib/tenant';
-import { loadPage } from '@/lib/page';
+import { requireOrg } from '@/lib/tenant';
+import { loadPage, requirePagePermission } from '@/lib/page';
 import { getHomework } from '@/lib/domain/homework';
 import { orgTimezone } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomeworkDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireOrg();
-  assertPermission(ctx, 'homework.read');
+  requirePagePermission(ctx, 'homework.read');
 
   const { id } = await params;
   const t = await getTranslator();

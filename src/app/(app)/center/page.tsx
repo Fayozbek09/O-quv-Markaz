@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg, assertPermission } from '@/lib/tenant';
+import { requireOrg } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { centerOverview } from '@/lib/domain/roleDashboards';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -19,9 +20,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function CenterDashboardPage() {
   const ctx = await requireOrg();
-  // The owner dashboard shows the whole centre's money, so it needs the
-  // reporting permission rather than merely a session.
-  assertPermission(ctx, 'reports.read');
+  // The owner dashboard puts salaries paid, expenses and the net result on the
+  // first screen, so it needs the finance permission rather than the reporting
+  // one a receptionist holds for chasing payments.
+  requirePagePermission(ctx, 'finance.read');
 
   const t = await getTranslator();
   const locale = await getLocale();

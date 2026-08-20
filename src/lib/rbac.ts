@@ -66,6 +66,15 @@ export const PERMISSIONS = [
   'reports.read',
   'reports.export',
 
+  /**
+   * The centre's own profit and loss: revenue against payroll and expenses.
+   * Separate from `reports.read`, which covers what a receptionist needs to
+   * chase a payment — who owes what, and what came in. A receptionist takes
+   * money without being shown what the centre earns from it, or what the
+   * teachers are paid.
+   */
+  'finance.read',
+
   'notifications.send',
 
   'center.settings',
@@ -151,7 +160,7 @@ export const GRANTABLE: Record<OrgRole, readonly Permission[]> = {
   RECEPTIONIST: [
     'attendance.write', 'students.delete', 'groups.delete', 'payments.adjust',
     'salary.read', 'expenses.read', 'reports.export', 'teachers.create',
-    'teachers.update', 'homework.read', 'grades.read',
+    'teachers.update', 'homework.read', 'grades.read', 'finance.read',
   ],
   ASSISTANT: [
     'attendance.write', 'students.delete', 'groups.delete', 'payments.adjust',

@@ -1,5 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { AppError } from './errors';
+import type { OrgContext } from './tenant';
+import type { Permission } from './rbac';
 
 /**
  * Bridges the domain layer's typed errors into Next's page conventions.
@@ -26,4 +28,20 @@ export async function loadPage<T>(load: () => Promise<T>): Promise<T> {
     }
     throw err;
   }
+}
+
+/**
+ * Page-level permission gate.
+ *
+ * `assertPermission` throws, which is right for an API route that owes the
+ * caller a 403. In a server component the same throw escapes to the client
+ * error boundary, and that boundary cannot tell a refusal from a crash — Next
+ * strips the detail in production — so the reader was shown "Something went
+ * wrong" and a Try again button that would never work.
+ *
+ * Pages therefore redirect to the page that says what actually happened. The
+ * check is the same one either way; only the way it is reported differs.
+ */
+export function requirePagePermission(ctx: OrgContext, permission: Permission): void {
+  if (!ctx.permissions.has(permission)) redirect('/forbidden');
 }

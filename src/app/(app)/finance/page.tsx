@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { requireOrg, assertPermission } from '@/lib/tenant';
+import { requireOrg } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { yearlyFinance } from '@/lib/domain/finance';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -21,7 +22,8 @@ type Search = { year?: string };
 
 export default async function FinancePage({ searchParams }: { searchParams: Promise<Search> }) {
   const ctx = await requireOrg();
-  assertPermission(ctx, 'reports.read');
+  // Payroll and the net result are the owner's business, not the front desk's.
+  requirePagePermission(ctx, 'finance.read');
 
   const params = await searchParams;
   const t = await getTranslator();

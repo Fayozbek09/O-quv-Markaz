@@ -214,3 +214,30 @@ describe('announcements', () => {
     expect(studentCtx.permissions.size).toBe(0);
   });
 });
+
+/**
+ * Regression: the owner dashboard and the finance page both render salaries
+ * paid, expenses and the net result. They were gated on `reports.read`, which a
+ * receptionist holds, so the front desk could reach both by typing the URL —
+ * the navigation hid the links, but hiding a link is not a control.
+ */
+describe('the centre finances', () => {
+  it('are refused to a receptionist at the gate both pages use', async () => {
+    expect(hasPermission(reception.ctx, 'finance.read')).toBe(false);
+    await forbidden(async () => assertPermission(reception.ctx, 'finance.read'));
+  });
+
+  it('are refused to a teacher as well', async () => {
+    expect(hasPermission(teacher.ctx, 'finance.read')).toBe(false);
+    await forbidden(async () => assertPermission(teacher.ctx, 'finance.read'));
+  });
+
+  it('remain open to the owner', () => {
+    expect(hasPermission(tenant.ctx, 'finance.read')).toBe(true);
+  });
+
+  it('do not take away what the receptionist needs for payments', () => {
+    expect(hasPermission(reception.ctx, 'reports.read')).toBe(true);
+    expect(hasPermission(reception.ctx, 'payments.read')).toBe(true);
+  });
+});

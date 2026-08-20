@@ -55,11 +55,27 @@ test.describe('receptionist', () => {
     }
   });
 
+  /**
+   * Asserted positively — the refusal has to be on the page — because an
+   * earlier version only checked that one particular phrase was absent, and a
+   * page that leaked the centre's payroll under a different wording sailed
+   * straight through it.
+   */
   test('is refused the pages its role does not hold, by URL', async ({ page }) => {
-    for (const path of ['/salaries', '/expenses', '/finance', '/billing']) {
+    const refused = /Ruxsat yo|Access denied|Доступ запрещ/;
+    for (const path of ['/salaries', '/expenses', '/finance', '/center', '/billing']) {
       await page.goto(path);
-      // A forbidden page renders the refusal, never the content.
-      await expect(page.locator('body'), path).not.toContainText(/Maosh modeli|Salary model|Модель зарплаты/);
+      await expect(page.locator('main'), path).toContainText(refused);
+    }
+  });
+
+  test('never sees payroll or the net result, whatever the wording', async ({ page }) => {
+    for (const path of ['/finance', '/center']) {
+      await page.goto(path);
+      const body = await page.locator('main').innerText();
+      // The figures those pages exist to show.
+      expect(body, path).not.toMatch(/Maoshlar|Зарплаты|Salaries/);
+      expect(body, path).not.toMatch(/Sof natija|Чистый результат|Net result/);
     }
   });
 

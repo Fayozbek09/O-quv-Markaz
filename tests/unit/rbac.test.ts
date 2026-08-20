@@ -120,3 +120,44 @@ describe('catalogue hygiene', () => {
     expect(new Set(PERMISSIONS).size).toBe(PERMISSIONS.length);
   });
 });
+
+/**
+ * The centre's profit and loss.
+ *
+ * A receptionist takes money all day and needs `reports.read` to chase a
+ * payment. That must not also show them what the teachers are paid or what the
+ * centre clears — the two were once the same permission, and the front desk
+ * could open the owner's dashboard and the finance page by typing the URL.
+ */
+describe('finance.read is separate from reports.read', () => {
+  it('is held by an owner and a centre admin', () => {
+    expect(permissionsFor('OWNER').has('finance.read')).toBe(true);
+    expect(permissionsFor('ADMIN').has('finance.read')).toBe(true);
+  });
+
+  it('is not held by a receptionist, a teacher or a student', () => {
+    for (const role of ['RECEPTIONIST', 'ASSISTANT', 'TEACHER', 'STUDENT'] as const) {
+      expect(permissionsFor(role).has('finance.read'), role).toBe(false);
+    }
+  });
+
+  it('leaves the receptionist able to chase payments', () => {
+    const reception = permissionsFor('RECEPTIONIST');
+    expect(reception.has('reports.read')).toBe(true);
+    expect(reception.has('payments.read')).toBe(true);
+    expect(reception.has('payments.create')).toBe(true);
+    // …but not to see payroll or the bottom line.
+    expect(reception.has('salary.read')).toBe(false);
+    expect(reception.has('expenses.read')).toBe(false);
+  });
+
+  it('can be granted to a receptionist deliberately, by the owner', () => {
+    const granted = permissionsFor('RECEPTIONIST', { 'finance.read': true });
+    expect(granted.has('finance.read')).toBe(true);
+  });
+
+  it('cannot be granted to a teacher, whose grant list does not include it', () => {
+    const attempted = permissionsFor('TEACHER', { 'finance.read': true });
+    expect(attempted.has('finance.read')).toBe(false);
+  });
+});

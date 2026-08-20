@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { requireOrg, assertPermission } from '@/lib/tenant';
+import { requireOrg } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { currentSubscription } from '@/lib/domain/subscription';
 import { getPricing } from '@/lib/domain/settings';
 import { planUsage } from '@/lib/domain/plan';
@@ -31,7 +32,7 @@ const TONE: Record<string, 'ok' | 'warn' | 'danger' | 'brand' | 'neutral'> = {
 
 export default async function BillingPage() {
   const ctx = await requireOrg();
-  assertPermission(ctx, 'center.billing');
+  requirePagePermission(ctx, 'center.billing');
 
   const t = await getTranslator();
   const locale = await getLocale();

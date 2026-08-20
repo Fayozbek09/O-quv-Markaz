@@ -27,7 +27,7 @@ export type NavItem = {
  * server-side, so typing the URL by hand gets the same 403.
  */
 export const NAV: readonly NavItem[] = [
-  { key: 'center', href: '/center', labelKey: 'nav.center', permission: null, roles: ['OWNER', 'ADMIN'] },
+  { key: 'center', href: '/center', labelKey: 'nav.center', permission: 'finance.read', roles: ['OWNER', 'ADMIN'] },
   { key: 'reception', href: '/reception', labelKey: 'nav.reception', permission: null, roles: ['RECEPTIONIST', 'ASSISTANT'] },
   { key: 'teacher', href: '/teacher', labelKey: 'nav.teacherArea', permission: null, roles: ['TEACHER'] },
   { key: 'students', href: '/students', labelKey: 'nav.students', permission: 'students.read' },
@@ -42,7 +42,7 @@ export const NAV: readonly NavItem[] = [
   { key: 'payments', href: '/payments', labelKey: 'nav.payments', permission: 'payments.read' },
   { key: 'salaries', href: '/salaries', labelKey: 'nav.salaries', permission: 'salary.read' },
   { key: 'expenses', href: '/expenses', labelKey: 'nav.expenses', permission: 'expenses.read' },
-  { key: 'finance', href: '/finance', labelKey: 'nav.finance', permission: 'reports.read', roles: ['OWNER', 'ADMIN'] },
+  { key: 'finance', href: '/finance', labelKey: 'nav.finance', permission: 'finance.read' },
   { key: 'reports', href: '/reports', labelKey: 'nav.reports', permission: 'reports.read' },
   { key: 'billing', href: '/billing', labelKey: 'nav.billing', permission: 'center.billing' },
 ];

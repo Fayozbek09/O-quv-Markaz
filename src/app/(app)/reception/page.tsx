@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg, assertPermission } from '@/lib/tenant';
+import { requireOrg } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { receptionOverview } from '@/lib/domain/roleDashboards';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -20,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 /** The desk view: built for speed — search, take payment, place a student. */
 export default async function ReceptionPage() {
   const ctx = await requireOrg();
-  assertPermission(ctx, 'students.read');
+  requirePagePermission(ctx, 'students.read');
 
   const t = await getTranslator();
   const locale = await getLocale();

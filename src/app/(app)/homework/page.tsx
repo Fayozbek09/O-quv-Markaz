@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireOrg, assertPermission, scope } from '@/lib/tenant';
+import { requireOrg, scope } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { listHomework } from '@/lib/domain/homework';
 import { orgTimezone } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -22,7 +23,7 @@ type Search = { groupId?: string; page?: string };
 
 export default async function HomeworkPage({ searchParams }: { searchParams: Promise<Search> }) {
   const ctx = await requireOrg();
-  assertPermission(ctx, 'homework.read');
+  requirePagePermission(ctx, 'homework.read');
 
   const params = await searchParams;
   const t = await getTranslator();

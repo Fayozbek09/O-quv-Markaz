@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { requireOrg, assertPermission } from '@/lib/tenant';
+import { requireOrg } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { salarySheet, ownSalary, listSalaryPayments } from '@/lib/domain/salary';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -22,7 +23,7 @@ type Search = { year?: string; month?: string };
 
 export default async function SalariesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const ctx = await requireOrg();
-  assertPermission(ctx, 'salary.read');
+  requirePagePermission(ctx, 'salary.read');
 
   const params = await searchParams;
   const t = await getTranslator();

@@ -83,6 +83,24 @@ versioning follows [Semantic Versioning](https://semver.org/).
   `OR` key, so the expiry clause was silently discarded and an expired notice
   stayed on the page. Both now compose through `AND`. Caught by a test written
   alongside the feature, before it shipped.
+- **A receptionist could read the centre's payroll and profit.** `/center` and
+  `/finance` both put salaries paid, expenses and the net result on the page,
+  and both were gated on `reports.read` — which a receptionist holds, because
+  they need it to chase a payment. The navigation hid the links, but hiding a
+  link is not a control: typing either URL worked. The two pages now require a
+  new `finance.read`, held by an owner and a centre admin and grantable to a
+  receptionist only if the owner decides to. Chasing payments is untouched.
+  Found by walking the roles through the running application rather than by a
+  test — the browser test that should have caught it only checked that one
+  particular phrase was absent, and has been rewritten to assert the refusal
+  itself.
+- **A refused page said "Something went wrong" and offered a Try again button
+  that could never work.** `assertPermission` throws, which is right for an API
+  route that owes a 403, but in a server component it escaped to the client
+  error boundary — which cannot tell a refusal from a crash, because Next strips
+  the detail in production. Pages now use `requirePagePermission`, which
+  redirects to `/forbidden`; that page already existed and nothing had ever sent
+  anyone to it.
 - **Both payment adapters were out by a factor of 100.** The ledger counts
   minor units, and for UZS that unit is the so'm itself (`minorUnits: 0`) — but
   the gateways do not agree: Payme quotes tiyin, Click quotes so'm. Payme was
