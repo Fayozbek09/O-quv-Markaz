@@ -16,6 +16,41 @@ export const DEFAULT_CURRENCY = 'UZS';
 
 const minorUnits = (currency: string) => CURRENCIES[currency]?.minorUnits ?? 2;
 
+/**
+ * Talking to a payment provider.
+ *
+ * The ledger counts minor units, and for UZS that unit is the so'm itself
+ * (`minorUnits: 0`) — there are no tiyin in circulation. Payment gateways do
+ * not agree on this: Click quotes the major unit, Payme quotes tiyin. Getting
+ * it wrong is a factor-of-100 error in a real charge, so neither adapter is
+ * allowed to divide by 100 on a hunch; both go through these.
+ */
+export const minorUnitsFor = minorUnits;
+
+/** Minor units → a plain decimal string in the currency's major unit. */
+export function minorToMajorString(amountMinor: bigint, currency = DEFAULT_CURRENCY): string {
+  const exp = minorUnits(currency);
+  if (exp === 0) return amountMinor.toString();
+  const divisor = BigInt(10 ** exp);
+  const whole = amountMinor / divisor;
+  const frac = (amountMinor % divisor).toString().padStart(exp, '0');
+  return `${whole}.${frac}`;
+}
+
+/**
+ * Minor units ⇄ hundredths of the major unit, for a provider that quotes in a
+ * fixed 1/100 sub-unit (Payme's tiyin) whatever the ledger does.
+ */
+export function minorToHundredths(amountMinor: bigint, currency = DEFAULT_CURRENCY): bigint {
+  const exp = minorUnits(currency);
+  return exp >= 2 ? amountMinor : amountMinor * BigInt(10 ** (2 - exp));
+}
+
+export function hundredthsToMinor(hundredths: bigint, currency = DEFAULT_CURRENCY): bigint {
+  const exp = minorUnits(currency);
+  return exp >= 2 ? hundredths : hundredths / BigInt(10 ** (2 - exp));
+}
+
 /** "400 000" or "400000,50" (user input) → minor units. */
 export function parseAmountToMinor(input: string, currency = DEFAULT_CURRENCY): bigint {
   const cleaned = input.replace(/[\s ']/g, '').replace(',', '.');

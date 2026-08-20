@@ -73,6 +73,7 @@ export const ru: Dictionary = {
     q3: 'Могу ли я экспортировать данные?',
     a3: 'Да. Ученики, платежи и отчёты выгружаются в CSV в любой момент.',
     footerRights: 'Все права защищены.',
+    contact: 'Контакты',
     planName: "Стандарт",
     planDesc: "Без ограничений: ученики, преподаватели, группы и курсы.",
     trialBadge: "30 дней бесплатно",
@@ -87,7 +88,8 @@ export const ru: Dictionary = {
   auth: {
     login: 'Войти', register: 'Создать аккаунт', logout: 'Выйти',
     loginTitle: 'С возвращением', loginSubtitle: 'Войдите в своё пространство',
-    registerTitle: 'Создайте пространство', registerSubtitle: 'Бесплатно до 10 учеников',
+    registerTitle: 'Создайте пространство',
+    registerSubtitle: 'Первый месяц бесплатно — далее {price}/мес за весь центр.',
     phone: 'Номер телефона', email: 'Email', password: 'Пароль',
     newPassword: 'Новый пароль', currentPassword: 'Текущий пароль',
     confirmPassword: 'Повторите пароль', code: 'Код подтверждения',

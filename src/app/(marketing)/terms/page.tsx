@@ -18,6 +18,7 @@ export default async function TermsPage() {
       lastUpdated={t('legal.lastUpdated', {
         date: formatDate(`${LEGAL_LAST_UPDATED}T00:00:00Z`, locale, 'dateLong', 'UTC'),
       })}
+      contactHeading={t('landing.contact')}
       doc={TERMS[locale]}
     />
   );

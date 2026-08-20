@@ -72,6 +72,7 @@ export const uz: Dictionary = {
     q3: "Ma'lumotlarimni eksport qila olamanmi?",
     a3: "Ha. O'quvchilar, to'lovlar va hisobotlar istalgan vaqtda CSV'ga eksport qilinadi.",
     footerRights: 'Barcha huquqlar himoyalangan.',
+    contact: "Bog'lanish",
     planName: "Standart",
     planDesc: "Cheksiz o'quvchi, o'qituvchi, guruh va kurs.",
     trialBadge: "30 kun bepul",
@@ -86,7 +87,8 @@ export const uz: Dictionary = {
   auth: {
     login: 'Kirish', register: 'Ro‘yxatdan o‘tish', logout: 'Chiqish',
     loginTitle: 'Xush kelibsiz', loginSubtitle: 'Ish maydoningizga kiring',
-    registerTitle: 'Ish maydoni yarating', registerSubtitle: "10 ta o'quvchigacha bepul",
+    registerTitle: 'Ish maydoni yarating',
+    registerSubtitle: "Birinchi oy bepul — keyin butun markaz uchun {price}/oy.",
     phone: 'Telefon raqami', email: 'Email', password: 'Parol',
     newPassword: 'Yangi parol', currentPassword: 'Joriy parol',
     confirmPassword: 'Parolni tasdiqlang', code: 'Tasdiqlash kodi',

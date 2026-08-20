@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { env } from '../../env';
+import { minorToMajorString, parseAmountToMinor } from '../../money';
 import type { PaymentProvider } from '../provider';
 
 /**
@@ -84,25 +85,32 @@ export function clickSignature(fields: {
   return createHash('md5').update(parts.join('')).digest('hex');
 }
 
-/** Click quotes amounts in whole so'm with decimals; the ledger holds minor units. */
-function amountToMinor(amount: string): bigint {
-  const value = Number(amount);
-  if (!Number.isFinite(value) || value < 0) return -1n;
-  return BigInt(Math.round(value * 100));
+/**
+ * Click quotes the major unit — so'm, not tiyin. For UZS the ledger's minor
+ * unit is already the so'm, so this is a parse rather than a division; going
+ * through the shared helper keeps it that way if another currency is ever
+ * added.
+ */
+function amountToMinor(amount: string, currency: string): bigint {
+  try {
+    return parseAmountToMinor(amount, currency);
+  } catch {
+    return -1n;
+  }
 }
 
 export const clickProvider: PaymentProvider = {
   name: 'click',
   configured,
 
-  async createCheckout({ amountMinor, idempotencyKey, returnUrl }) {
+  async createCheckout({ amountMinor, currency, idempotencyKey, returnUrl }) {
     if (!configured) return { redirectUrl: null, providerRef: null, unavailable: true };
 
     const params = new URLSearchParams({
       service_id: env.CLICK_MERCHANT_ID,
       merchant_id: env.CLICK_MERCHANT_ID,
       // Click takes the amount in so'm, not in tiyin.
-      amount: (Number(amountMinor) / 100).toFixed(2),
+      amount: minorToMajorString(amountMinor, currency),
       transaction_param: idempotencyKey,
       return_url: returnUrl,
     });
@@ -155,7 +163,7 @@ export const clickProvider: PaymentProvider = {
       return { ok: false, reason: 'bad_signature' };
     }
 
-    const amountMinor = amountToMinor(amount);
+    const amountMinor = amountToMinor(amount, 'UZS');
     if (amountMinor < 0n) return { ok: false, reason: 'bad_amount' };
 
     // Click reports failure as a negative error code on either call.

@@ -66,6 +66,7 @@ export const en = {
     q3: 'Can I export my data?',
     a3: 'Yes. Students, payments and reports export to CSV at any time.',
     footerRights: 'All rights reserved.',
+    contact: 'Contact',
     planName: "Standard",
     planDesc: "Unlimited students, teachers, groups and courses.",
     trialBadge: "30 days free",
@@ -80,7 +81,8 @@ export const en = {
   auth: {
     login: 'Log in', register: 'Create account', logout: 'Log out',
     loginTitle: 'Welcome back', loginSubtitle: 'Log in to your workspace',
-    registerTitle: 'Create your workspace', registerSubtitle: 'Free for up to 10 students',
+    registerTitle: 'Create your workspace',
+    registerSubtitle: 'First month free — then {price}/month for the whole centre.',
     phone: 'Phone number', email: 'Email', password: 'Password',
     newPassword: 'New password', currentPassword: 'Current password',
     confirmPassword: 'Confirm password', code: 'Verification code',

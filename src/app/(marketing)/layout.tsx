@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
+import {
+  CONTACT, CONTACT_MAIL_HREF, CONTACT_TEL_HREF, CONTACT_PHONE_DISPLAY,
+} from '@/lib/contact';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { Logo } from '@/components/ui/Logo';
@@ -44,6 +47,12 @@ export default async function MarketingLayout({ children }: { children: React.Re
               © {new Date().getFullYear()} Ustozly. {t('landing.footerRights')}
             </span>
             <div className="flex-1" />
+            <a href={CONTACT_MAIL_HREF} className="hover:text-ink hover:underline">
+              {CONTACT.email}
+            </a>
+            <a href={CONTACT_TEL_HREF} className="tnum hover:text-ink hover:underline">
+              {CONTACT_PHONE_DISPLAY}
+            </a>
             <Link href="/privacy" className="hover:text-ink hover:underline">
               {t('legal.privacyTitle')}
             </Link>

@@ -42,6 +42,9 @@ versioning follows [Semantic Versioning](https://semver.org/).
   is served as a download inside a sandbox, never rendered in the page. Teachers
   attach files when setting homework; students attach one when handing in, with
   an optional note.
+- **Contact details** on the marketing footer and at the foot of the privacy
+  and terms pages, from one overridable source (`src/lib/contact.ts`) rather
+  than pasted around the interface.
 - **SMS delivery, implemented.** `senders.ts` said Eskiz was "left
   unimplemented on purpose", which meant phone registration could not complete
   anywhere but a developer's console. Both Uzbek gateways now work: **Eskiz.uz**
@@ -80,6 +83,19 @@ versioning follows [Semantic Versioning](https://semver.org/).
   `OR` key, so the expiry clause was silently discarded and an expired notice
   stayed on the page. Both now compose through `AND`. Caught by a test written
   alongside the feature, before it shipped.
+- **Both payment adapters were out by a factor of 100.** The ledger counts
+  minor units, and for UZS that unit is the so'm itself (`minorUnits: 0`) — but
+  the gateways do not agree: Payme quotes tiyin, Click quotes so'm. Payme was
+  sending `a=300000` for a 300 000 so'm term (a 3 000 so'm charge) and reading
+  the tiyin figure straight back, and the new Click adapter divided by 100 on
+  the way out and multiplied on the way in. Either way the webhook's amount
+  check compared 30 000 000 against 300 000 and refused, so **no subscription
+  could ever have settled**. Both now convert through shared helpers in
+  `money.ts`, and a round-trip test pins the real figures for each gateway.
+- The registration page still advertised "Free for up to 10 students", left over
+  from the single-tutor pricing that was otherwise removed. It now reads "first
+  month free, then {price}/month for the whole centre", with the price read from
+  platform settings rather than written into the interface.
 - The end-to-end logout test located the account menu with a name regex loose
   enough to match unrelated buttons, and failed intermittently as the interface
   grew. It now addresses the control by its ARIA relationship and waits for the

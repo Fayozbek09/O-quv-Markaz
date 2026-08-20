@@ -29,7 +29,8 @@ describe('17/18. payment webhook signature verification', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.outcome).toBe('succeeded');
-      expect(result.amountMinor).toBe(25000n);
+      // Payme quotes tiyin; the ledger counts so'm. 25 000 tiyin = 250 so'm.
+      expect(result.amountMinor).toBe(250n);
       expect(result.idempotencyKey).toBe('order-1');
     }
   });
@@ -211,13 +212,14 @@ describe('click webhook verification', () => {
     return { ...signed, ...(over.sign_string ? { sign_string: over.sign_string } : {}) };
   };
 
-  it('accepts a correctly signed settlement and converts the amount', async () => {
+  it('accepts a correctly signed settlement and reads the amount in ledger units', async () => {
     const result = await clickProvider.verifyWebhook(form(callback()));
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.outcome).toBe('succeeded');
-      // 300 000 so'm is 30 000 000 tiyin.
-      expect(result.amountMinor).toBe(30_000_000n);
+      // Click quotes so'm, and the UZS ledger counts so'm, so the figure is
+      // carried across unchanged - it must NOT be divided or multiplied by 100.
+      expect(result.amountMinor).toBe(300_000n);
       expect(result.idempotencyKey).toBe('intent-abc');
     }
   });
@@ -289,5 +291,91 @@ describe('click webhook verification', () => {
       form(callback({ action: '1', sign_string: prepareDigest })),
     );
     expect(result).toMatchObject({ ok: false, reason: 'bad_signature' });
+  });
+});
+
+/**
+ * The amount has to survive the whole round trip.
+ *
+ * A centre owes 300 000 so'm. The intent stores 300000 minor units, because the
+ * UZS minor unit *is* the so'm. Each gateway quotes a different unit, and the
+ * webhook route settles a payment only when the figure it verifies equals the
+ * figure on the intent — so a 100x slip in either adapter means either an
+ * undercharge at the checkout or a payment that can never settle.
+ */
+describe('amounts survive the round trip to each gateway', () => {
+  const ONE_MONTH_MINOR = 300_000n; // 300 000 so'm
+
+  it('quotes Payme in tiyin and reads tiyin back as so\'m', async () => {
+    const checkout = await paymeProvider.createCheckout({
+      organizationId: 'org-1',
+      plan: 'STANDARD',
+      amountMinor: ONE_MONTH_MINOR,
+      currency: 'UZS',
+      idempotencyKey: 'intent-payme',
+      returnUrl: 'https://example.test/billing',
+    });
+
+    const decoded = Buffer.from(
+      (checkout.redirectUrl as string).split('/').pop() as string,
+      'base64',
+    ).toString('utf8');
+    // 300 000 so'm is 30 000 000 tiyin — what Payme expects to be told.
+    expect(decoded).toContain('a=30000000');
+
+    const back = await paymeProvider.verifyWebhook({
+      rawBody: body('PerformTransaction', 'intent-payme', 30_000_000),
+      headers: { authorization: basic('Paycom', process.env.PAYME_SECRET_KEY as string) },
+    });
+    expect(back.ok).toBe(true);
+    if (back.ok) expect(back.amountMinor).toBe(ONE_MONTH_MINOR);
+  });
+
+  it("quotes Click in so'm and reads so'm back unchanged", async () => {
+    const checkout = await clickProvider.createCheckout({
+      organizationId: 'org-1',
+      plan: 'STANDARD',
+      amountMinor: ONE_MONTH_MINOR,
+      currency: 'UZS',
+      idempotencyKey: 'intent-click',
+      returnUrl: 'https://example.test/billing',
+    });
+
+    const amount = new URL(checkout.redirectUrl as string).searchParams.get('amount');
+    // Not 3000, which is what dividing by 100 would have charged.
+    expect(amount).toBe('300000');
+
+    const fields = {
+      click_trans_id: '900002',
+      service_id: process.env.CLICK_MERCHANT_ID as string,
+      merchant_trans_id: 'intent-click',
+      merchant_prepare_id: '77',
+      amount: '300000.00',
+      action: '1',
+      sign_time: '2026-08-21 09:00:00',
+      error: '0',
+    };
+    const back = await clickProvider.verifyWebhook({
+      rawBody: new URLSearchParams({
+        ...fields,
+        sign_string: clickSignature({
+          clickTransId: fields.click_trans_id,
+          serviceId: fields.service_id,
+          merchantTransId: fields.merchant_trans_id,
+          merchantPrepareId: fields.merchant_prepare_id,
+          amount: fields.amount,
+          action: fields.action,
+          signTime: fields.sign_time,
+          secret: process.env.CLICK_SECRET_KEY as string,
+        }),
+      }).toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
+
+    expect(back.ok).toBe(true);
+    if (back.ok) {
+      // The equality the webhook route performs before extending the term.
+      expect(back.amountMinor).toBe(ONE_MONTH_MINOR);
+    }
   });
 });

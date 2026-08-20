@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual, createHash } from 'node:crypto';
 import { env } from '../../env';
+import { minorToHundredths, hundredthsToMinor } from '../../money';
 import type { PaymentProvider } from '../provider';
 
 /**
@@ -11,6 +12,12 @@ import type { PaymentProvider } from '../provider';
  *
  * The parts that matter for security are implemented and testable now:
  * constant-time credential comparison and per-event idempotency.
+ *
+ * Amounts: Payme quotes **tiyin**, always. The ledger counts so'm for UZS
+ * (`CURRENCIES.UZS.minorUnits === 0`), so every amount crossing this boundary
+ * is converted. Passing the figure through unchanged would undercharge by a
+ * factor of 100 on the way out and fail the webhook's amount check on the way
+ * back, so no payment would ever settle.
  */
 const configured = Boolean(env.PAYME_MERCHANT_ID && env.PAYME_SECRET_KEY);
 
@@ -24,13 +31,13 @@ export const paymeProvider: PaymentProvider = {
   name: 'payme',
   configured,
 
-  async createCheckout({ amountMinor, idempotencyKey, returnUrl }) {
+  async createCheckout({ amountMinor, currency, idempotencyKey, returnUrl }) {
     if (!configured) return { redirectUrl: null, providerRef: null, unavailable: true };
     // Payme's hosted checkout takes a base64 parameter string.
     const params = [
       `m=${env.PAYME_MERCHANT_ID}`,
       `ac.order_id=${idempotencyKey}`,
-      `a=${amountMinor.toString()}`,
+      `a=${minorToHundredths(amountMinor, currency).toString()}`,
       `c=${returnUrl}`,
     ].join(';');
     return {
@@ -75,7 +82,7 @@ export const paymeProvider: PaymentProvider = {
       externalId: String(body.id),
       idempotencyKey: orderId,
       outcome,
-      amountMinor: BigInt(body.params?.amount ?? 0),
+      amountMinor: hundredthsToMinor(BigInt(body.params?.amount ?? 0), 'UZS'),
       currency: 'UZS',
     };
   },

@@ -19,9 +19,12 @@ type Step = 'identify' | 'verify';
 export function RegisterForm({
   googleEnabled,
   showDevCode,
+  priceLabel,
 }: {
   googleEnabled: boolean;
   showDevCode: boolean;
+  /** Formatted monthly price, resolved server-side from platform settings. */
+  priceLabel: string;
 }) {
   const t = useT();
   const router = useRouter();
@@ -144,7 +147,7 @@ export function RegisterForm({
   return (
     <AuthCard
       title={t('auth.registerTitle')}
-      subtitle={t('auth.registerSubtitle')}
+      subtitle={t('auth.registerSubtitle', { price: priceLabel })}
       footer={
         <span className="text-ink-soft">
           {t('auth.haveAccount')}{' '}
