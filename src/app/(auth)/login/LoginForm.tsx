@@ -57,15 +57,16 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <FormError message={error} />
 
+        {/* Labelled simply "Login", though the field still accepts a username,
+            a phone number or an e-mail — the server works out which it is. */}
         <TextField
-          label={`${t('staff.username')} / ${t('auth.phone')} / ${t('auth.email')}`}
+          label={t('staff.username')}
           name="identifier"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
           autoComplete="username"
           required
           autoFocus
-          placeholder="teacher.karimova"
         />
 
         <div>
