@@ -11,4 +11,4 @@ export const POST = orgMutation(async (ctx, request) => {
   const body = await readJson(request, telegramSendReminderSchema);
   const result = await sendReminder(ctx, body);
   return json(result);
-});
+}, 'notifications.send');

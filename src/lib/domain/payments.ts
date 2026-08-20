@@ -67,7 +67,7 @@ export async function recordPayment(ctx: OrgContext, input: z.infer<typeof payme
       method: input.method,
       note: input.note,
       receiptNo: input.receiptNo,
-      createdByUserId: ctx.user.userId,
+      createdByUserId: ctx.actorUserId,
     },
   });
 
@@ -75,7 +75,7 @@ export async function recordPayment(ctx: OrgContext, input: z.infer<typeof payme
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'payment.create',
     entityType: 'payment',
     entityId: payment.id,
@@ -113,7 +113,7 @@ export async function reversePayment(ctx: OrgContext, paymentId: string, reason:
         deltaMinor: 0n,
         currency: payment.currency,
         reason,
-        createdByUserId: ctx.user.userId,
+        createdByUserId: ctx.actorUserId,
       },
     });
 
@@ -127,7 +127,7 @@ export async function reversePayment(ctx: OrgContext, paymentId: string, reason:
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'payment.reverse',
     entityType: 'payment',
     entityId: paymentId,
@@ -181,7 +181,7 @@ export async function generateInvoices(
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'invoice.generate',
     entityType: 'organization',
     entityId: ctx.orgId,

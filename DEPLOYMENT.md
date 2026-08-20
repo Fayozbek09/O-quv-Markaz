@@ -289,3 +289,124 @@ Worth alerting on:
 
 Ship application logs off-host. They contain no secrets and no raw IPs by
 design, so they are safe to centralize.
+
+
+---
+
+## 10. Platform administrator
+
+The platform account is created by a script, never by a migration and never by a
+seeded constant:
+
+```bash
+npm run admin:create
+```
+
+It prints the username and password once and stores only the Argon2id hash.
+Options:
+
+| Variable | Effect |
+|---|---|
+| `ADMIN_FULL_NAME` | Display name (default: `Iskandarov Fayozbek`) |
+| `ADMIN_USERNAME` | Use a specific handle instead of generating one |
+| `ADMIN_PASSWORD` | Use a specific password (must be ≥16 characters) |
+
+The generated username is the name plus a random tail (`f.iskandarov.k3m9x`)
+rather than a bare surname: a guessable admin handle is half of a brute-force
+attempt.
+
+**Rotation.** Re-running the script replaces the password and revokes every live
+admin session. The same is available in the UI at `/admin` → change password,
+which also signs the current session out. Rotate:
+
+- on any suspicion of exposure,
+- when a person with access leaves,
+- on a schedule your policy defines.
+
+There is no password-recovery flow for this account by design. If it is lost,
+run the script again from a host with database access.
+
+---
+
+## 11. Subscription jobs
+
+One daily job keeps subscription state and reminders moving:
+
+```bash
+npm run subscriptions:remind
+```
+
+It rolls every centre through the trial → payment due → grace → suspended
+ladder and sends the 7 / 3 / 1 / 0-day warnings. Both halves are idempotent, so
+running it twice in a day changes nothing and sends nothing twice.
+
+Missing a run is not harmful: statuses are also evaluated whenever a
+subscription is read, so a centre is never in a stale state for longer than one
+request. The job exists so that *reminders* go out on time.
+
+A systemd timer:
+
+```ini
+# /etc/systemd/system/oquv-markaz-subscriptions.timer
+[Unit]
+Description=O'quv Markaz subscription maintenance
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 Asia/Tashkent
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```ini
+# /etc/systemd/system/oquv-markaz-subscriptions.service
+[Unit]
+Description=O'quv Markaz subscription maintenance
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/oquv-markaz
+EnvironmentFile=/srv/oquv-markaz/.env
+ExecStart=/usr/bin/npm run subscriptions:remind
+User=oquv
+```
+
+---
+
+## 12. Pricing configuration
+
+Price, trial length and grace period are **not** environment variables and not
+constants. They live in `platform_settings` and are edited at `/admin/pricing`.
+
+Defaults on a fresh installation:
+
+| Key | Default |
+|---|---|
+| `monthly_price_minor` | `300000` (UZS has no subunit, so this is 300 000 so'm) |
+| `currency` | `UZS` |
+| `trial_days` | `30` |
+| `grace_period_days` | `7` |
+
+Changing the price affects new centres and renewals. Existing subscriptions keep
+the `amountMinor` snapshotted on their own row, so a live customer is never
+silently re-priced.
+
+---
+
+## 13. Settling a centre without a payment provider
+
+Until Payme or Click credentials are configured, `PAYMENT_PROVIDER=manual` is
+used. That provider never reports success — a stub that faked one would let any
+centre self-upgrade.
+
+To settle a centre that paid by transfer:
+
+1. Sign in at `/admin/login`.
+2. Open `/admin/centers/<id>`.
+3. **Record an offline payment**, entering the amount and the bank reference.
+
+The term is extended by `applySuccessfulPayment`, exactly as a verified webhook
+would, and the action is written to the audit log with the admin's id and the
+reference supplied. This is the only path that extends a subscription without a
+signed provider event, and it is available to platform staff only.

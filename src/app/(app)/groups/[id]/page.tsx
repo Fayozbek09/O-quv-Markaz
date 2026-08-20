@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { requireOrg } from '@/lib/tenant';
+import { loadPage } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { getGroup } from '@/lib/domain/groups';
 import { currentOrg } from '@/lib/domain/org';
@@ -25,7 +26,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
   const t = await getTranslator();
   const locale = await getLocale();
 
-  const [group, org] = await Promise.all([getGroup(ctx, id), currentOrg(ctx)]);
+  const [group, org] = await loadPage(() => Promise.all([getGroup(ctx, id), currentOrg(ctx)]));
 
   const [lessons, availableStudents] = await Promise.all([
     prisma.lesson.findMany({

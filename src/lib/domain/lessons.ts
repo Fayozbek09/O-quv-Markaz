@@ -2,6 +2,7 @@ import { prisma } from '../db';
 import { scope, findOwned, assertAllOwned, type OrgContext } from '../tenant';
 import { audit } from '../security/audit';
 import { Conflict, NotFound } from '../errors';
+import { notify, groupStudentUserIds } from '../notifications/notify';
 import { dayBounds, zonedTimeToUtc } from './time';
 import type { z } from 'zod';
 import type { calendarQuerySchema, lessonInputSchema, lessonStatusSchema } from '../validation/schemas';
@@ -52,6 +53,78 @@ export async function getLesson(ctx: OrgContext, id: string) {
   return lesson;
 }
 
+/**
+ * Scheduling conflicts.
+ *
+ * Three things cannot be in two places at once: a group, a teacher and a room.
+ * The check is a true interval overlap (`newStart < existingEnd && newEnd >
+ * existingStart`), not an equal-start-time comparison — a 18:00–19:30 lesson
+ * and a 19:00–20:30 lesson in the same room clash even though neither starts
+ * when the other does.
+ *
+ * Cancelled lessons free their slot, and the lesson being edited is excluded
+ * from its own check.
+ */
+export type ScheduleConflict = {
+  kind: 'group' | 'teacher' | 'room';
+  lessonId: string;
+  startsAt: Date;
+  endsAt: Date;
+  groupName: string;
+};
+
+export async function findScheduleConflict(
+  ctx: OrgContext,
+  input: {
+    groupId: string;
+    teacherId?: string | null;
+    room?: string | null;
+    startsAt: Date;
+    endsAt: Date;
+    excludeLessonId?: string;
+  },
+): Promise<ScheduleConflict | null> {
+  const overlapping = await prisma.lesson.findMany({
+    where: {
+      organizationId: ctx.orgId,
+      deletedAt: null,
+      status: { not: 'CANCELLED' },
+      startsAt: { lt: input.endsAt },
+      endsAt: { gt: input.startsAt },
+      ...(input.excludeLessonId ? { NOT: { id: input.excludeLessonId } } : {}),
+      OR: [
+        { groupId: input.groupId },
+        ...(input.teacherId ? [{ teacherId: input.teacherId }] : []),
+        ...(input.room ? [{ room: input.room }] : []),
+      ],
+    },
+    select: {
+      id: true, startsAt: true, endsAt: true, groupId: true, teacherId: true, room: true,
+      group: { select: { name: true } },
+    },
+    orderBy: { startsAt: 'asc' },
+    take: 1,
+  });
+
+  const clash = overlapping[0];
+  if (!clash) return null;
+
+  const kind: ScheduleConflict['kind'] =
+    clash.groupId === input.groupId
+      ? 'group'
+      : input.teacherId && clash.teacherId === input.teacherId
+        ? 'teacher'
+        : 'room';
+
+  return {
+    kind,
+    lessonId: clash.id,
+    startsAt: clash.startsAt,
+    endsAt: clash.endsAt,
+    groupName: clash.group.name,
+  };
+}
+
 export async function createLesson(ctx: OrgContext, input: LessonInput, timeZone: string) {
   await assertAllOwned(ctx, 'group', [input.groupId]);
   if (input.teacherId) await assertMembership(ctx, input.teacherId);
@@ -59,10 +132,14 @@ export async function createLesson(ctx: OrgContext, input: LessonInput, timeZone
   const startsAt = zonedTimeToUtc(input.date, input.startTime, timeZone);
   const endsAt = zonedTimeToUtc(input.date, input.endTime, timeZone);
 
-  const clash = await prisma.lesson.findFirst({
-    where: { organizationId: ctx.orgId, groupId: input.groupId, startsAt, deletedAt: null },
+  const clash = await findScheduleConflict(ctx, {
+    groupId: input.groupId,
+    teacherId: input.teacherId ?? null,
+    room: input.room ?? null,
+    startsAt,
+    endsAt,
   });
-  if (clash) throw Conflict('lessons.conflict');
+  if (clash) throw Conflict(`lessons.conflict.${clash.kind}`);
 
   const lesson = await prisma.lesson.create({
     data: {
@@ -78,7 +155,7 @@ export async function createLesson(ctx: OrgContext, input: LessonInput, timeZone
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'lesson.create',
     entityType: 'lesson',
     entityId: lesson.id,
@@ -87,16 +164,28 @@ export async function createLesson(ctx: OrgContext, input: LessonInput, timeZone
 }
 
 export async function updateLesson(ctx: OrgContext, id: string, input: LessonInput, timeZone: string) {
-  await findOwned(ctx, 'lesson', id, { deletedAt: null });
+  const before = await findOwned<{ id: string; startsAt: Date; endsAt: Date; room: string | null }>(
+    ctx,
+    'lesson',
+    id,
+    { deletedAt: null },
+  );
   await assertAllOwned(ctx, 'group', [input.groupId]);
 
   const startsAt = zonedTimeToUtc(input.date, input.startTime, timeZone);
   const endsAt = zonedTimeToUtc(input.date, input.endTime, timeZone);
 
-  const clash = await prisma.lesson.findFirst({
-    where: { organizationId: ctx.orgId, groupId: input.groupId, startsAt, NOT: { id }, deletedAt: null },
+  const clash = await findScheduleConflict(ctx, {
+    groupId: input.groupId,
+    teacherId: input.teacherId ?? null,
+    room: input.room ?? null,
+    startsAt,
+    endsAt,
+    excludeLessonId: id,
   });
-  if (clash) throw Conflict('lessons.conflict');
+  if (clash) throw Conflict(`lessons.conflict.${clash.kind}`);
+
+  const moved = before.startsAt.getTime() !== startsAt.getTime();
 
   const res = await prisma.lesson.updateMany({
     where: scope.byId(ctx, id),
@@ -111,12 +200,24 @@ export async function updateLesson(ctx: OrgContext, id: string, input: LessonInp
   });
   if (res.count === 0) throw NotFound();
 
+  // A moved lesson is only useful to a student if they hear about it.
+  if (moved) {
+    await notify({
+      organizationId: ctx.orgId,
+      userIds: await groupStudentUserIds(ctx.orgId, input.groupId),
+      type: 'LESSON_RESCHEDULED',
+      titleKey: 'notifications.lessonRescheduled',
+      payload: { lessonId: id, startsAt: startsAt.toISOString() },
+    });
+  }
+
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'lesson.update',
     entityType: 'lesson',
     entityId: id,
+    meta: { moved },
   });
   return prisma.lesson.findFirst({ where: scope.byId(ctx, id) });
 }
@@ -126,6 +227,13 @@ export async function setLessonStatus(
   id: string,
   input: z.infer<typeof lessonStatusSchema>,
 ) {
+  const lesson = await findOwned<{ id: string; groupId: string; status: string }>(
+    ctx,
+    'lesson',
+    id,
+    { deletedAt: null },
+  );
+
   const res = await prisma.lesson.updateMany({
     where: scope.byId(ctx, id),
     data: {
@@ -134,9 +242,21 @@ export async function setLessonStatus(
     },
   });
   if (res.count === 0) throw NotFound();
+
+  // The student portal already shows a CANCELLED badge; this makes sure nobody
+  // has to open it to find out.
+  if (input.status === 'CANCELLED' && lesson.status !== 'CANCELLED') {
+    await notify({
+      organizationId: ctx.orgId,
+      userIds: await groupStudentUserIds(ctx.orgId, lesson.groupId),
+      type: 'LESSON_CANCELLED',
+      titleKey: 'notifications.lessonCancelled',
+      payload: { lessonId: id },
+    });
+  }
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'lesson.status',
     entityType: 'lesson',
     entityId: id,
@@ -152,7 +272,7 @@ export async function deleteLesson(ctx: OrgContext, id: string) {
   if (res.count === 0) throw NotFound();
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'lesson.delete',
     entityType: 'lesson',
     entityId: id,

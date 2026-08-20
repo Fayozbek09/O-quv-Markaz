@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
 import { formatMoney } from '@/lib/money';
 import { INTL_LOCALE } from '@/lib/i18n/config';
-import { PLANS } from '@/lib/payments/provider';
+import { getPricing } from '@/lib/domain/settings';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslator();
@@ -20,6 +20,10 @@ export default async function LandingPage() {
   const t = await getTranslator();
   const locale = await getLocale();
   const money = (v: bigint) => formatMoney(v, 'UZS', INTL_LOCALE[locale]);
+  // The advertised price is the live platform setting, so the landing page and
+  // the billing screen can never drift apart.
+  const pricing = await getPricing();
+  const price = formatMoney(pricing.monthlyPriceMinor, pricing.currency, INTL_LOCALE[locale]);
 
   const features = [
     { key: 'f1', d: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3 19c0-3 2.7-5 6-5s6 2 6 5M17 14.5c2.3.5 4 1.8 4 4.5' },
@@ -153,44 +157,41 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* pricing */}
+      {/* pricing — one flat price, no per-student component */}
       <section className="border-b border-line">
-        <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
           <h2 className="text-2xl font-semibold tracking-tight">{t('landing.pricingTitle')}</h2>
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            {[
-              { name: t('landing.priceFree'), price: money(PLANS.FREE.priceMinor), per: '', desc: t('landing.priceFreeDesc'), featured: false },
-              { name: t('landing.pricePro'), price: money(PLANS.PRO.priceMinor), per: t('landing.perMonth'), desc: t('landing.priceProDesc'), featured: true },
-              { name: t('landing.priceAnnual'), price: money(PLANS.ANNUAL.priceMinor), per: t('landing.perYear'), desc: t('landing.priceAnnualDesc'), featured: false },
-            ].map((plan) => (
-              <div
-                key={plan.name}
-                className={
-                  plan.featured
-                    ? 'card border-brand-500 p-5 ring-1 ring-brand-500'
-                    : 'card p-5'
-                }
-              >
-                <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-faint">
-                  {plan.name}
-                </p>
-                <p className="tnum mt-2 text-2xl font-semibold">
-                  {plan.price}
-                  <span className="text-sm font-normal text-ink-faint">{plan.per}</span>
-                </p>
-                <p className="mt-2 text-[13px] text-ink-soft">{plan.desc}</p>
-                <Link
-                  href="/register"
-                  className={
-                    plan.featured
-                      ? 'mt-5 block rounded-[var(--radius-field)] bg-brand-500 px-4 py-2 text-center text-sm font-medium text-white hover:bg-brand-600'
-                      : 'mt-5 block rounded-[var(--radius-field)] border border-line-strong px-4 py-2 text-center text-sm font-medium text-ink hover:bg-surface-muted'
-                  }
-                >
-                  {t('landing.ctaPrimary')}
-                </Link>
-              </div>
-            ))}
+
+          <div className="card mt-8 border-brand-500 p-6 ring-1 ring-brand-500 sm:p-8">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-[13px] font-semibold uppercase tracking-wide text-ink-faint">
+                {t('landing.planName')}
+              </p>
+              <span className="rounded-full border border-ok-50 bg-ok-50 px-2.5 py-0.5 text-[12px] font-semibold text-ok-600">
+                {t('landing.trialBadge')}
+              </span>
+            </div>
+
+            <p className="tnum mt-3 text-3xl font-semibold">
+              {price}
+              <span className="text-base font-normal text-ink-faint">{t('billing.perMonth')}</span>
+            </p>
+            <p className="mt-1 text-[13px] font-medium text-ink">{t('billing.forWholeCenter')}</p>
+
+            <ul className="mt-5 flex flex-col gap-2 text-[14px] text-ink-soft">
+              <li>{t('landing.trialLine')}</li>
+              <li>{t('landing.priceLine', { price })}</li>
+              <li>{t('landing.planDesc')}</li>
+              <li>{t('landing.noPerStudent')}</li>
+            </ul>
+
+            <Link
+              href="/register"
+              className="btn btn-primary mt-6 h-11 w-full justify-center px-5 text-[15px] sm:w-auto"
+            >
+              {t('landing.ctaPrimary')}
+            </Link>
+            <p className="mt-2 text-[12px] text-ink-faint">{t('landing.freeNote')}</p>
           </div>
         </div>
       </section>

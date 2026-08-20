@@ -10,10 +10,10 @@ export const POST = orgMutation<Params>(async (ctx, request, { id }) => {
   const body = await readJson(request, groupMemberSchema);
   await addMember(ctx, id, body.studentId, body.feeOverride ?? null);
   return json({ ok: true }, { status: 201 });
-});
+}, 'groups.members');
 
 export const DELETE = orgMutation<Params>(async (ctx, request, { id }) => {
   const body = await readJson(request, z.object({ studentId: uuidSchema }).strict());
   await removeMember(ctx, id, body.studentId);
   return noContent();
-});
+}, 'groups.members');

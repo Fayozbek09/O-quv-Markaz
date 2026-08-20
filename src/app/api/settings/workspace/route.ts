@@ -22,10 +22,10 @@ export const PUT = orgMutation(async (ctx, request) => {
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'organization.update',
     entityType: 'organization',
     entityId: ctx.orgId,
   });
   return json({ ok: true });
-}, 'ADMIN');
+}, 'center.settings');

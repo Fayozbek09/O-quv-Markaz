@@ -13,7 +13,7 @@ export async function createLinkToken(input: {
   organizationId: string;
   targetType: TelegramTargetType;
   studentId?: string | null;
-  createdByUserId: string;
+  createdByUserId: string | null;
 }) {
   const token = randomToken(24);
   const expiresAt = new Date(Date.now() + LINK_TTL_MS);

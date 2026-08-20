@@ -103,7 +103,7 @@ export async function createStudent(ctx: OrgContext, input: StudentInput) {
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'student.create',
     entityType: 'student',
     entityId: student.id,
@@ -165,7 +165,7 @@ export async function updateStudent(ctx: OrgContext, id: string, input: StudentI
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'student.update',
     entityType: 'student',
     entityId: id,
@@ -188,7 +188,7 @@ export async function archiveStudent(ctx: OrgContext, id: string) {
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'student.archive',
     entityType: 'student',
     entityId: id,
@@ -204,7 +204,7 @@ export async function restoreStudent(ctx: OrgContext, id: string) {
   if (res.count === 0) throw NotFound();
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'student.restore',
     entityType: 'student',
     entityId: id,

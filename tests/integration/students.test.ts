@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTenant, makeStudent, truncateAll, db, type Tenant } from '../factories';
-import { createStudent, updateStudent, archiveStudent, restoreStudent, listStudents, getStudent } from '@/lib/domain/students';
+import { createStudent, archiveStudent, restoreStudent, listStudents, getStudent } from '@/lib/domain/students';
 import { studentInputSchema, studentListQuerySchema } from '@/lib/validation/schemas';
 import { AppError } from '@/lib/errors';
 
@@ -41,6 +41,7 @@ describe('students', () => {
       firstName: 'Scoped',
       lastName: null, phone: null, email: null, birthDate: null, notes: null,
       status: 'ACTIVE', parentName: null, parentPhone: null, parentRelation: null,
+      address: null, studentNo: null,
       // A crafted client cannot add organizationId here: the schema is strict
       // and the domain layer ignores anything but the context.
     });
@@ -85,6 +86,7 @@ describe('students', () => {
       firstName: 'Nodira', lastName: 'Karimova', phone: '+998939876543',
       email: null, birthDate: null, notes: null, status: 'ACTIVE',
       parentName: null, parentPhone: null, parentRelation: null,
+      address: null, studentNo: null,
     });
 
     expect((await listStudents(tenant.ctx, query({ q: 'nodira' }))).rows.length).toBeGreaterThan(0);
@@ -103,23 +105,26 @@ describe('students', () => {
   });
 });
 
-describe('plan limits', () => {
-  it('refuses to create past the free-plan student ceiling', async () => {
-    const free = await createTenant('Free Tier');
-    await db.subscription.update({
-      where: { organizationId: free.org.id },
-      data: { plan: 'FREE' },
-    });
+describe('subscription, not a student ceiling', () => {
+  it('imposes no limit on how many students a centre may have', async () => {
+    const centre = await createTenant('Unlimited Tier');
 
-    for (let i = 0; i < 10; i += 1) {
-      await makeStudent(free, `Student${i}`);
+    // The old product refused an eleventh student on the free plan. The centre
+    // platform charges one flat price for the whole centre, so this must pass.
+    for (let i = 0; i < 12; i += 1) {
+      await makeStudent(centre, `Student${i}`);
     }
 
-    await expect(
-      createStudent(free.ctx, {
-        firstName: 'Eleventh', lastName: null, phone: null, email: null, birthDate: null,
-        notes: null, status: 'ACTIVE', parentName: null, parentPhone: null, parentRelation: null,
-      }),
-    ).rejects.toMatchObject({ status: 402 });
+    const eleventh = await createStudent(centre.ctx, {
+      firstName: 'Twelfth', lastName: null, phone: null, email: null, birthDate: null,
+      notes: null, status: 'ACTIVE', parentName: null, parentPhone: null, parentRelation: null,
+      address: null, studentNo: null,
+    });
+    expect(eleventh.id).toBeDefined();
+
+    const total = await db.student.count({
+      where: { organizationId: centre.org.id, deletedAt: null },
+    });
+    expect(total).toBeGreaterThanOrEqual(13);
   });
 });

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { requireOrg } from '@/lib/tenant';
+import { loadPage } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { getStudent, studentAttendanceStats } from '@/lib/domain/students';
 import { studentBalance } from '@/lib/domain/billing';
@@ -26,12 +27,15 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
   const t = await getTranslator();
   const locale = await getLocale();
 
-  const [student, balance, attendance, org] = await Promise.all([
-    getStudent(ctx, id),
-    studentBalance(ctx, id),
-    studentAttendanceStats(ctx, id),
-    currentOrg(ctx),
-  ]);
+  // A foreign or malformed id must render 404, not 500 — see lib/page.ts.
+  const [student, balance, attendance, org] = await loadPage(() =>
+    Promise.all([
+      getStudent(ctx, id),
+      studentBalance(ctx, id),
+      studentAttendanceStats(ctx, id),
+      currentOrg(ctx),
+    ]),
+  );
 
   const [payments, recentAttendance] = await Promise.all([
     prisma.payment.findMany({

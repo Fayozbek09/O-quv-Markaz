@@ -24,7 +24,7 @@ export const paymeProvider: PaymentProvider = {
   name: 'payme',
   configured,
 
-  async createCheckout({ amountMinor, currency, idempotencyKey, returnUrl }) {
+  async createCheckout({ amountMinor, idempotencyKey, returnUrl }) {
     if (!configured) return { redirectUrl: null, providerRef: null, unavailable: true };
     // Payme's hosted checkout takes a base64 parameter string.
     const params = [

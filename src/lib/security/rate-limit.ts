@@ -13,6 +13,10 @@ export const RATE_RULES = {
   'otp:request:ip': { limit: 10, windowMs: 15 * 60_000 },
   'otp:verify:identifier': { limit: 8, windowMs: 15 * 60_000 },
   'auth:login:identifier': { limit: 8, windowMs: 15 * 60_000 },
+  // Platform admin is a single, known account: a much tighter bucket, and a
+  // per-account lockout on top of it (see api/admin/login).
+  'admin:login:username': { limit: 5, windowMs: 15 * 60_000 },
+  'admin:login:ip': { limit: 10, windowMs: 15 * 60_000 },
   'auth:login:ip': { limit: 30, windowMs: 15 * 60_000 },
   'auth:reset:identifier': { limit: 3, windowMs: 60 * 60_000 },
   'auth:register:ip': { limit: 10, windowMs: 60 * 60_000 },

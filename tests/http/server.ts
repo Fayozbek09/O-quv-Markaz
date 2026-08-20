@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { ensureProductionBuild } from '../support/build';
 import { config } from 'dotenv';
 
@@ -29,6 +29,21 @@ async function waitForReady(timeoutMs = 90_000) {
   throw new Error('server did not become ready');
 }
 
+/**
+ * Port 3111 belongs to this suite and nothing else, so a process still holding
+ * it is by definition a leftover from an interrupted run. A wedged leftover
+ * answers nothing but keeps the port, which used to fail the whole suite with
+ * an unhelpful "server did not become ready" — so it is cleared before we try
+ * to bind.
+ */
+function reclaimPort() {
+  try {
+    execFileSync('fuser', ['-k', `${PORT}/tcp`], { stdio: 'ignore', timeout: 5000 });
+  } catch {
+    // `fuser` is absent or nothing was listening; both are fine.
+  }
+}
+
 export async function setup() {
   // Reuse an instance left behind by a previous run rather than fighting it
   // for the port.
@@ -43,6 +58,10 @@ export async function setup() {
   } catch {
     /* nothing listening, or it is not answering - start our own */
   }
+
+  reclaimPort();
+  // Give the kernel a moment to release the socket before binding it.
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   const testEnv: Record<string, string> = {};
   config({ path: '.env.test', processEnv: testEnv });
@@ -81,7 +100,10 @@ export async function setup() {
 }
 
 export async function teardown() {
-  if (!child) return;
+  if (!child) {
+    reclaimPort();
+    return;
+  }
   // Detach the pipes first: an open stdio stream keeps the event loop alive and
   // vitest then waits for a process that has already been asked to stop.
   child.stdout?.destroy();
@@ -91,4 +113,7 @@ export async function teardown() {
   child.kill('SIGKILL');
   child.unref();
   child = null;
+  // `next start` spawns a worker; killing the parent does not always take the
+  // listener with it, and a survivor would break the next run.
+  reclaimPort();
 }

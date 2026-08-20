@@ -142,10 +142,10 @@ export const POST = orgMutation(async (ctx, request) => {
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'student.import',
     meta: { created, skipped: parsed.length - created },
   });
 
   return json({ created, skipped: parsed.length - created }, { status: 201 });
-});
+}, 'students.import');

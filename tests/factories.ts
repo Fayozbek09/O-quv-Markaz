@@ -1,6 +1,8 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@/generated/prisma/client';
 import type { OrgContext } from '@/lib/tenant';
+import { permissionsFor } from '@/lib/rbac';
+import type { OrgRole } from '@/generated/prisma/enums';
 import { randomUUID } from 'node:crypto';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -38,15 +40,47 @@ export async function createTenant(name = 'Test Studio') {
     include: { members: true },
   });
 
-  const ctx: OrgContext = {
+  const member = org.members[0]!;
+  const ctx = buildContext({
+    userId: user.id,
     orgId: org.id,
+    memberId: member.id,
     role: 'OWNER',
+    email: user.email,
+    phone: user.phone,
+  });
+
+  return { user, org, member, ctx };
+}
+
+/**
+ * Builds an OrgContext the same way lib/tenant.ts does, so a test exercises the
+ * real permission resolution rather than a hand-written permission set.
+ */
+export function buildContext(input: {
+  userId: string;
+  orgId: string;
+  memberId: string | null;
+  role: OrgRole;
+  email?: string | null;
+  phone?: string | null;
+  memberPermissions?: Record<string, boolean>;
+}): OrgContext {
+  return {
+    orgId: input.orgId,
+    role: input.role,
+    memberId: input.memberId,
+    actorUserId: input.userId,
+    csrfSecret: 'test-csrf-secret',
+    admin: null,
+    isOverride: false,
+    permissions: permissionsFor(input.role, input.memberPermissions ?? {}),
     user: {
       sessionId: randomUUID(),
       csrfSecret: 'test-csrf-secret',
-      userId: user.id,
-      email: user.email,
-      phone: user.phone,
+      userId: input.userId,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
       emailVerified: true,
       phoneVerified: true,
       firstName: 'Test',
@@ -54,12 +88,13 @@ export async function createTenant(name = 'Test Studio') {
       locale: 'UZ',
       timezone: 'Asia/Tashkent',
       avatarFileId: null,
-      activeOrgId: org.id,
-      role: 'OWNER',
+      activeOrgId: input.orgId,
+      role: input.role,
+      memberId: input.memberId,
+      memberPermissions: input.memberPermissions ?? {},
+      mustChangePassword: false,
     },
   };
-
-  return { user, org, member: org.members[0]!, ctx };
 }
 
 export async function makeStudent(tenant: Tenant, firstName = 'Ali', lastName = 'Valiyev') {
@@ -123,4 +158,82 @@ export async function truncateAll() {
       organization_members, organizations, files, sessions, profiles, users
     RESTART IDENTITY CASCADE
   `);
+}
+
+/**
+ * Adds a staff member with a given role to an existing tenant and returns a
+ * context built the same way the real session resolver builds one.
+ */
+export async function makeMember(
+  tenant: Tenant,
+  role: OrgRole,
+  overrides: Record<string, boolean> = {},
+) {
+  const suffix = unique();
+  const user = await db.user.create({
+    data: {
+      username: `${role.toLowerCase()}.${suffix}`,
+      passwordHash: 'not-a-real-hash',
+      profile: { create: { firstName: role, lastName: 'Member', locale: 'UZ' } },
+    },
+  });
+  const member = await db.organizationMember.create({
+    data: {
+      organizationId: tenant.org.id,
+      userId: user.id,
+      role,
+      permissions: overrides,
+    },
+  });
+  return {
+    user,
+    member,
+    ctx: buildContext({
+      userId: user.id,
+      orgId: tenant.org.id,
+      memberId: member.id,
+      role,
+      memberPermissions: overrides,
+    }),
+  };
+}
+
+/** Links a student row to a portal account, as the credentials endpoint does. */
+export async function makeStudentAccount(tenant: Tenant, studentId: string) {
+  const suffix = unique();
+  const user = await db.user.create({
+    data: {
+      username: `student.${suffix}`,
+      passwordHash: 'not-a-real-hash',
+      profile: { create: { firstName: 'Portal', lastName: 'Student', locale: 'UZ' } },
+    },
+  });
+  await db.organizationMember.create({
+    data: { organizationId: tenant.org.id, userId: user.id, role: 'STUDENT' },
+  });
+  await db.student.update({ where: { id: studentId }, data: { userId: user.id } });
+  return user;
+}
+
+/** A SessionUser for a student portal account. */
+export function studentSession(userId: string) {
+  return {
+    sessionId: randomUUID(),
+    csrfSecret: 'test-csrf-secret',
+    userId,
+    email: null,
+    phone: null,
+    emailVerified: false,
+    phoneVerified: false,
+    firstName: 'Portal',
+    lastName: 'Student',
+    locale: 'UZ' as const,
+    timezone: 'Asia/Tashkent',
+    avatarFileId: null,
+    activeOrgId: null,
+    role: 'STUDENT' as const,
+    memberId: null,
+    memberPermissions: {},
+    mustChangePassword: false,
+  };
 }

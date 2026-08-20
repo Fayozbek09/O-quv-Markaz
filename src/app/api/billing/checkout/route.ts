@@ -2,42 +2,56 @@ import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { json, orgMutation, readJson } from '@/lib/api';
 import { startCheckoutSchema } from '@/lib/validation/schemas';
-import { paymentProvider, PLANS } from '@/lib/payments';
+import { paymentProvider } from '@/lib/payments';
+import { getPricing } from '@/lib/domain/settings';
+import { currentSubscription } from '@/lib/domain/subscription';
 import { enforce } from '@/lib/security/rate-limit';
 import { env } from '@/lib/env';
 import { audit } from '@/lib/security/audit';
 
 /**
  * Creates a pending billing intent and hands back the provider's checkout URL.
- * Nothing about the subscription changes here - activation happens only when a
+ *
+ * Nothing about the subscription changes here — activation happens only when a
  * signed webhook (or an explicit server-side status fetch) confirms payment.
+ * The amount is computed here from platform settings, never taken from the
+ * request, so a crafted body cannot buy a year for nothing.
  */
 export const POST = orgMutation(async (ctx, request) => {
   const body = await readJson(request, startCheckoutSchema);
   await enforce('billing:intent:org', ctx.orgId);
 
-  const plan = PLANS[body.plan];
-  const idempotencyKey = `${ctx.orgId}:${body.plan}:${randomBytes(8).toString('hex')}`;
+  const [pricing, subscription] = await Promise.all([
+    getPricing(),
+    currentSubscription(ctx.orgId),
+  ]);
+
+  // Honour the price snapshotted on the subscription so an existing customer
+  // is not silently re-priced mid-relationship.
+  const unitMinor = subscription.amountMinor > 0n ? subscription.amountMinor : pricing.monthlyPriceMinor;
+  const amountMinor = unitMinor * BigInt(body.months);
+  const currency = subscription.currency || pricing.currency;
+  const idempotencyKey = `${ctx.orgId}:STANDARD:${randomBytes(8).toString('hex')}`;
 
   const intent = await prisma.billingIntent.create({
     data: {
       organizationId: ctx.orgId,
-      plan: body.plan,
-      amountMinor: plan.priceMinor,
-      currency: plan.currency,
+      plan: 'STANDARD',
+      amountMinor,
+      currency,
       provider: paymentProvider.name,
       idempotencyKey,
-      createdByUserId: ctx.user.userId,
+      createdByUserId: ctx.actorUserId,
     },
   });
 
   const checkout = await paymentProvider.createCheckout({
     organizationId: ctx.orgId,
-    plan: body.plan,
-    amountMinor: plan.priceMinor,
-    currency: plan.currency,
+    plan: 'STANDARD',
+    amountMinor,
+    currency,
     idempotencyKey,
-    returnUrl: `${env.APP_URL}/settings/billing`,
+    returnUrl: `${env.APP_URL}/center/billing`,
   });
 
   if (checkout.providerRef) {
@@ -47,19 +61,36 @@ export const POST = orgMutation(async (ctx, request) => {
     });
   }
 
+  await prisma.subscriptionPayment.create({
+    data: {
+      organizationId: ctx.orgId,
+      subscriptionId: subscription.id,
+      amountMinor,
+      currency,
+      provider: paymentProvider.name,
+      providerTransactionId: checkout.providerRef ?? idempotencyKey,
+      status: 'PENDING',
+    },
+  });
+
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'billing.checkout.create',
     entityType: 'billing_intent',
     entityId: intent.id,
-    meta: { plan: body.plan, provider: paymentProvider.name },
+    meta: { months: body.months, provider: paymentProvider.name, amountMinor: amountMinor.toString() },
   });
 
-  return json({
-    intentId: intent.id,
-    redirectUrl: checkout.redirectUrl,
-    unavailable: checkout.unavailable ?? false,
-    messageKey: checkout.unavailable ? 'settings.billingNotConfigured' : undefined,
-  }, { status: 201 });
-}, 'OWNER');
+  return json(
+    {
+      intentId: intent.id,
+      amountMinor: amountMinor.toString(),
+      currency,
+      redirectUrl: checkout.redirectUrl,
+      unavailable: checkout.unavailable ?? false,
+      messageKey: checkout.unavailable ? 'billing.providerNotConfigured' : undefined,
+    },
+    { status: 201 },
+  );
+}, 'center.billing');

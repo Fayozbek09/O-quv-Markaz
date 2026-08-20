@@ -3,11 +3,18 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import type { StudentModel, GroupModel, GroupMemberModel } from '../src/generated/prisma/models';
 import { hash } from '@node-rs/argon2';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 
 /**
- * Development seed. Creates two independent workspaces so that tenant
- * isolation can be exercised by hand as well as by the automated tests.
+ * Development seed.
+ *
+ * Builds two independent education centres so tenant isolation can be exercised
+ * by hand as well as by the automated tests, plus one account for every role so
+ * each dashboard has something real behind it.
+ *
+ * Staff and student passwords here are development fixtures and are printed at
+ * the end. The platform-administrator password is generated, printed once and
+ * never stored in readable form — see scripts/create-admin.ts.
  */
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -15,6 +22,10 @@ const prisma = new PrismaClient({ adapter });
 const ARGON = { memoryCost: 19456, timeCost: 2, parallelism: 1, outputLen: 32 } as const;
 const TZ = 'Asia/Tashkent';
 const UZS = 'UZS';
+const DAY = 86_400_000;
+
+/** A shared fixture password, used only by the seeded demo accounts. */
+const DEMO_PASSWORD = 'Demo-Markaz-2026!';
 
 /** Tashkent is UTC+5 year-round, so a fixed offset is correct here. */
 function tashkentUtc(dateIso: string, hhmm: string): Date {
@@ -22,10 +33,9 @@ function tashkentUtc(dateIso: string, hhmm: string): Date {
 }
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
-const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
+const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY);
 
 async function reset() {
-  // Order matters only where cascades do not cover it.
   await prisma.$transaction([
     prisma.outboundMessage.deleteMany(),
     prisma.telegramLinkToken.deleteMany(),
@@ -33,59 +43,38 @@ async function reset() {
     prisma.auditLog.deleteMany(),
     prisma.rateLimitCounter.deleteMany(),
     prisma.otpCode.deleteMany(),
+    prisma.adminSession.deleteMany(),
     prisma.organization.deleteMany(),
     prisma.user.deleteMany(),
   ]);
 }
 
-async function createTeacher(input: {
-  email: string;
-  phone: string;
-  firstName: string;
-  lastName: string;
-  subject: string;
-  orgName: string;
-  plan?: 'FREE' | 'PRO';
-}) {
-  const user = await prisma.user.create({
+type NewUser = { username: string; firstName: string; lastName: string; email?: string; phone?: string };
+
+async function createUser(input: NewUser) {
+  return prisma.user.create({
     data: {
+      username: input.username,
       email: input.email,
-      emailVerified: new Date(),
+      emailVerified: input.email ? new Date() : null,
       phone: input.phone,
-      phoneVerified: new Date(),
-      passwordHash: await hash('Ustozly2026!', ARGON),
-      profile: {
-        create: {
-          firstName: input.firstName,
-          lastName: input.lastName,
-          teachingSubject: input.subject,
-          locale: 'UZ',
-          timezone: TZ,
-        },
-      },
+      phoneVerified: input.phone ? new Date() : null,
+      passwordHash: await hash(DEMO_PASSWORD, ARGON),
+      profile: { create: { firstName: input.firstName, lastName: input.lastName, locale: 'UZ', timezone: TZ } },
     },
   });
+}
 
-  const org = await prisma.organization.create({
-    data: {
-      name: input.orgName,
-      slug: `${input.orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${randomUUID().slice(0, 6)}`,
-      defaultCurrency: UZS,
-      timezone: TZ,
-      locale: 'UZ',
-      members: { create: { userId: user.id, role: 'OWNER' } },
-      subscription: { create: { plan: input.plan ?? 'FREE' } },
-    },
-    include: { members: true },
-  });
-
+async function notificationDefaults(userId: string) {
   await prisma.notificationPreference.createMany({
-    data: (['LESSON_UPCOMING', 'ATTENDANCE_MISSED', 'PAYMENT_OVERDUE', 'MONTHLY_SUMMARY'] as const).map(
-      (type) => ({ userId: user.id, type, inApp: true, telegram: false, email: false }),
-    ),
+    data: (
+      [
+        'LESSON_UPCOMING', 'LESSON_CANCELLED', 'ATTENDANCE_MISSED', 'HOMEWORK_ASSIGNED',
+        'GRADE_POSTED', 'PAYMENT_OVERDUE', 'PAYMENT_RECEIVED', 'MONTHLY_SUMMARY',
+      ] as const
+    ).map((type) => ({ userId, type, inApp: true, telegram: false, email: false })),
+    skipDuplicates: true,
   });
-
-  return { user, org, member: org.members[0]! };
 }
 
 const STUDENTS = [
@@ -99,41 +88,180 @@ const STUDENTS = [
   ['Kamola', 'Sobirova', '+998901234508', 'Sobir Sobirov', '+998901112208'],
   ['Doston', 'Umarov', '+998901234509', 'Umar Umarov', '+998901112209'],
   ['Sevara', 'Qodirova', '+998901234510', 'Qodir Qodirov', '+998901112210'],
+  ['Otabek', 'Mirzayev', '+998901234511', 'Mirza Mirzayev', '+998901112211'],
+  ['Shahnoza', 'Tursunova', '+998901234512', 'Tursun Tursunov', '+998901112212'],
 ] as const;
 
 async function main() {
   console.info('seed: resetting');
   await reset();
 
-  // ---------------------------------------------------------------- tenant A
-  const a = await createTeacher({
-    email: 'ustoz@ustozly.uz',
-    phone: '+998901112233',
+  // ---------------------------------------------------------------- platform admin
+  const { ensurePlatformAdmin } = await import('../scripts/create-admin');
+  const admin = await ensurePlatformAdmin({ quiet: true });
+
+  // ---------------------------------------------------------------- centre A
+  const ownerUser = await createUser({
+    username: 'owner.karimova',
     firstName: 'Aziza',
     lastName: 'Karimova',
-    subject: 'Ingliz tili',
-    orgName: 'Aziza English Studio',
-    // PRO, so the seeded 10 students do not sit exactly on the free ceiling and
-    // block the first thing a developer tries: adding a student.
-    plan: 'PRO',
+    email: 'egasi@oquvmarkaz.uz',
+    phone: '+998901112233',
+  });
+  await notificationDefaults(ownerUser.id);
+
+  const org = await prisma.organization.create({
+    data: {
+      name: "Bilim Ziyo o'quv markazi",
+      legalName: 'BILIM ZIYO MCHJ',
+      slug: `bilim-ziyo-${randomUUID().slice(0, 6)}`,
+      city: 'Toshkent',
+      district: 'Chilonzor',
+      address: "Chilonzor 19-mavze, 12-uy",
+      phone: '+998712001020',
+      email: 'info@bilimziyo.uz',
+      description: "Til, aniq fanlar va dasturlash bo'yicha o'quv markaz.",
+      telegramHandle: '@bilimziyo',
+      workingHours: [
+        { weekday: 1, open: '09:00', close: '20:00', closed: false },
+        { weekday: 2, open: '09:00', close: '20:00', closed: false },
+        { weekday: 3, open: '09:00', close: '20:00', closed: false },
+        { weekday: 4, open: '09:00', close: '20:00', closed: false },
+        { weekday: 5, open: '09:00', close: '20:00', closed: false },
+        { weekday: 6, open: '10:00', close: '16:00', closed: false },
+        { weekday: 7, open: '00:00', close: '00:00', closed: true },
+      ],
+      defaultCurrency: UZS,
+      timezone: TZ,
+      locale: 'UZ',
+      status: 'ACTIVE',
+      members: { create: { userId: ownerUser.id, role: 'OWNER' } },
+    },
+    include: { members: true },
   });
 
+  // A trial that is a few days old, so the countdown banner has something to show.
+  const trialStart = new Date(Date.now() - 12 * DAY);
+  await prisma.subscription.create({
+    data: {
+      organizationId: org.id,
+      plan: 'STANDARD',
+      status: 'TRIAL',
+      trialStartedAt: trialStart,
+      trialEndsAt: new Date(trialStart.getTime() + 30 * DAY),
+      nextPaymentAt: new Date(trialStart.getTime() + 30 * DAY),
+      amountMinor: 300_000n,
+      currency: UZS,
+      currentPeriodStart: trialStart,
+      currentPeriodEnd: new Date(trialStart.getTime() + 30 * DAY),
+    },
+  });
+
+  // ---------------------------------------------------------------- staff
+  const receptionUser = await createUser({
+    username: 'reception.tosheva',
+    firstName: 'Nigora',
+    lastName: 'Tosheva',
+    phone: '+998901112244',
+  });
+  await notificationDefaults(receptionUser.id);
+  const receptionMember = await prisma.organizationMember.create({
+    data: {
+      organizationId: org.id,
+      userId: receptionUser.id,
+      role: 'RECEPTIONIST',
+      hireDate: new Date(Date.UTC(2025, 8, 1)),
+      salaryModel: 'FIXED',
+      salaryAmountMinor: 4_000_000n,
+      currency: UZS,
+      permissions: { 'attendance.write': true },
+    },
+  });
+
+  const teacherSpecs = [
+    {
+      username: 'teacher.saidova', firstName: 'Dilbar', lastName: 'Saidova',
+      subject: 'Ingliz tili', specialization: 'IELTS / General English',
+      phone: '+998901112255', salaryModel: 'PERCENTAGE' as const,
+      salaryAmountMinor: 0n, salaryPercentBp: 4000,
+    },
+    {
+      username: 'teacher.rustamov', firstName: 'Anvar', lastName: 'Rustamov',
+      subject: 'Matematika', specialization: 'Algebra va geometriya',
+      phone: '+998901112266', salaryModel: 'FIXED' as const,
+      salaryAmountMinor: 6_500_000n, salaryPercentBp: 0,
+    },
+  ];
+
+  const teachers = [];
+  for (const spec of teacherSpecs) {
+    const user = await createUser({
+      username: spec.username,
+      firstName: spec.firstName,
+      lastName: spec.lastName,
+      phone: spec.phone,
+    });
+    await notificationDefaults(user.id);
+    const member = await prisma.organizationMember.create({
+      data: {
+        organizationId: org.id,
+        userId: user.id,
+        role: 'TEACHER',
+        subject: spec.subject,
+        specialization: spec.specialization,
+        hireDate: new Date(Date.UTC(2025, 5, 15)),
+        salaryModel: spec.salaryModel,
+        salaryAmountMinor: spec.salaryAmountMinor,
+        salaryPercentBp: spec.salaryPercentBp,
+        currency: UZS,
+      },
+    });
+    teachers.push({ user, member, spec });
+  }
+
+  // ---------------------------------------------------------------- courses
+  const courseSpecs = [
+    { name: 'Ingliz tili', catalogKey: 'english', fee: 450_000n, color: '#2f62d8' },
+    { name: 'IELTS', catalogKey: 'ielts', fee: 650_000n, color: '#7c3aed' },
+    { name: 'Matematika', catalogKey: 'math', fee: 400_000n, color: '#0f9d58' },
+    { name: 'Dasturlash', catalogKey: 'programming', fee: 700_000n, color: '#e8710a' },
+  ];
+  const courses = [];
+  for (const spec of courseSpecs) {
+    courses.push(
+      await prisma.course.create({
+        data: {
+          organizationId: org.id,
+          name: spec.name,
+          catalogKey: spec.catalogKey,
+          defaultFeeMinor: spec.fee,
+          currency: UZS,
+          color: spec.color,
+          durationMonths: 6,
+        },
+      }),
+    );
+  }
+
+  // ---------------------------------------------------------------- students
   const students: StudentModel[] = [];
-  for (const [firstName, lastName, phone, parentName, parentPhone] of STUDENTS) {
+  for (const [index, row] of STUDENTS.entries()) {
+    const [firstName, lastName, phone, parentName, parentPhone] = row;
     students.push(
       await prisma.student.create({
         data: {
-          organizationId: a.org.id,
+          organizationId: org.id,
           firstName,
           lastName,
           phone,
+          studentNo: `2026-${String(index + 1).padStart(4, '0')}`,
           status: 'ACTIVE',
           parents: {
             create: {
-              organizationId: a.org.id,
+              organizationId: org.id,
               fullName: parentName,
               phone: parentPhone,
-              relation: 'parent',
+              relation: 'ota-ona',
               isPrimary: true,
             },
           },
@@ -142,31 +270,65 @@ async function main() {
     );
   }
 
+  // The first three students get a portal login so /student has real data.
+  const studentLogins: Array<{ username: string; name: string }> = [];
+  for (const student of students.slice(0, 3)) {
+    const username = `student.${student.lastName?.toLowerCase() ?? 'oquvchi'}`;
+    const user = await createUser({
+      username,
+      firstName: student.firstName,
+      lastName: student.lastName ?? '',
+    });
+    await notificationDefaults(user.id);
+    await prisma.organizationMember.create({
+      data: { organizationId: org.id, userId: user.id, role: 'STUDENT' },
+    });
+    await prisma.student.update({ where: { id: student.id }, data: { userId: user.id } });
+    studentLogins.push({ username, name: `${student.firstName} ${student.lastName}` });
+  }
+
+  // ---------------------------------------------------------------- groups
   const groupSpecs = [
-    { name: 'IELTS Evening A', subject: 'IELTS', weekdays: [1, 3, 5], start: '18:00', end: '19:30', fee: 450_000n, color: '#2f62d8', take: [0, 1, 2, 3] },
-    { name: 'General English B1', subject: 'General English', weekdays: [2, 4], start: '17:00', end: '18:30', fee: 350_000n, color: '#0f9d58', take: [4, 5, 6] },
-    { name: 'Beginners Morning', subject: 'Beginner English', weekdays: [1, 3], start: '09:00', end: '10:30', fee: 300_000n, color: '#e8710a', take: [7, 8, 9] },
+    {
+      name: 'IELTS Evening A', course: 1, teacher: 0, weekdays: [1, 3, 5],
+      start: '18:00', end: '19:30', fee: 650_000n, room: '201', take: [0, 1, 2, 3],
+    },
+    {
+      name: 'General English B1', course: 0, teacher: 0, weekdays: [2, 4],
+      start: '17:00', end: '18:30', fee: 450_000n, room: '202', take: [4, 5, 6, 7],
+    },
+    {
+      name: 'Matematika 9-sinf', course: 2, teacher: 1, weekdays: [1, 3],
+      start: '09:00', end: '10:30', fee: 400_000n, room: '105', take: [8, 9, 10, 11],
+    },
   ];
 
-  const groups: Array<{ group: GroupModel & { members: GroupMemberModel[] }; spec: (typeof groupSpecs)[number] }> = [];
+  const groups: Array<{
+    group: GroupModel & { members: GroupMemberModel[] };
+    spec: (typeof groupSpecs)[number];
+  }> = [];
+
   for (const spec of groupSpecs) {
     const group = await prisma.group.create({
       data: {
-        organizationId: a.org.id,
+        organizationId: org.id,
         name: spec.name,
-        subject: spec.subject,
-        teacherId: a.member.id,
+        subject: courses[spec.course]!.name,
+        courseId: courses[spec.course]!.id,
+        teacherId: teachers[spec.teacher]!.member.id,
+        capacity: 12,
         monthlyFeeMinor: spec.fee,
         currency: UZS,
-        color: spec.color,
+        color: courses[spec.course]!.color,
         weekdays: spec.weekdays,
         startTime: spec.start,
         endTime: spec.end,
-        room: 'Room 1',
+        room: spec.room,
         status: 'ACTIVE',
+        startDate: new Date(Date.UTC(2026, 0, 15)),
         members: {
           create: spec.take.map((index) => ({
-            organizationId: a.org.id,
+            organizationId: org.id,
             studentId: students[index]!.id,
           })),
         },
@@ -176,50 +338,114 @@ async function main() {
     groups.push({ group, spec });
   }
 
-  // ---------------------------------------------------------------- lessons
+  // ---------------------------------------------------------------- lessons & attendance
   const today = new Date();
   let lessonCount = 0;
   let attendanceCount = 0;
 
   for (const { group, spec } of groups) {
-    for (let offset = -21; offset <= 14; offset += 1) {
+    for (let offset = -28; offset <= 14; offset += 1) {
       const day = addDays(today, offset);
-      const weekday = ((day.getUTCDay() + 6) % 7) + 1; // 1 = Monday
+      const weekday = ((day.getUTCDay() + 6) % 7) + 1;
       if (!spec.weekdays.includes(weekday)) continue;
 
       const dateIso = isoDate(day);
+      // One cancelled lesson, so the "lesson cancelled" path has an example.
+      const cancelled = offset === 2 && group.name.startsWith('IELTS');
+
       const lesson = await prisma.lesson.create({
         data: {
-          organizationId: a.org.id,
+          organizationId: org.id,
           groupId: group.id,
-          teacherId: a.member.id,
+          teacherId: group.teacherId,
           startsAt: tashkentUtc(dateIso, spec.start),
           endsAt: tashkentUtc(dateIso, spec.end),
-          room: 'Room 1',
-          status: offset < 0 ? 'COMPLETED' : 'SCHEDULED',
+          room: spec.room,
+          status: cancelled ? 'CANCELLED' : offset < 0 ? 'COMPLETED' : 'SCHEDULED',
+          cancelReason: cancelled ? "O'qituvchi kasal" : null,
         },
       });
       lessonCount += 1;
 
-      // Only past lessons carry attendance.
       if (offset >= 0) continue;
 
       for (const [index, member] of group.members.entries()) {
-        // A deterministic spread: mostly present, with a few absences and lates.
-        const bucket = (index + offset + 21) % 10;
+        const bucket = (index + offset + 28) % 10;
         const status = bucket === 3 ? 'ABSENT' : bucket === 7 ? 'LATE' : bucket === 8 ? 'EXCUSED' : 'PRESENT';
-
         await prisma.attendance.create({
           data: {
-            organizationId: a.org.id,
+            organizationId: org.id,
             lessonId: lesson.id,
             studentId: member.studentId,
             status,
             minutesLate: status === 'LATE' ? 10 : null,
-            markedByUserId: a.user.id,
+            markedByUserId: teachers[spec.teacher]!.user.id,
           },
         });
         attendanceCount += 1;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- homework & grades
+  let homeworkCount = 0;
+  let gradeCount = 0;
+
+  for (const { group, spec } of groups) {
+    for (const [hwIndex, title] of ['Unit 3 — Reading', 'Unit 4 — Writing task'].entries()) {
+      const homework = await prisma.homework.create({
+        data: {
+          organizationId: org.id,
+          groupId: group.id,
+          teacherId: teachers[spec.teacher]!.member.id,
+          title: `${group.name}: ${title}`,
+          description: "Darslikdagi mashqlarni bajaring va daftarga yozing.",
+          dueAt: addDays(today, hwIndex === 0 ? -3 : 4),
+          status: 'PUBLISHED',
+          maxScore: 10,
+        },
+      });
+      homeworkCount += 1;
+
+      for (const [index, member] of group.members.entries()) {
+        const overdue = hwIndex === 0;
+        const status = overdue
+          ? index % 4 === 0
+            ? 'MISSING'
+            : index % 3 === 0
+              ? 'LATE'
+              : 'GRADED'
+          : 'ASSIGNED';
+        await prisma.homeworkSubmission.create({
+          data: {
+            organizationId: org.id,
+            homeworkId: homework.id,
+            studentId: member.studentId,
+            status,
+            submittedAt: status === 'GRADED' || status === 'LATE' ? addDays(today, -3) : null,
+            score: status === 'GRADED' ? 7 + (index % 4) : null,
+            markedByUserId: status === 'ASSIGNED' ? null : teachers[spec.teacher]!.user.id,
+          },
+        });
+      }
+    }
+
+    for (const [index, member] of group.members.entries()) {
+      for (const [gradeIndex, label] of ['Oraliq nazorat', 'Yakuniy test'].entries()) {
+        await prisma.grade.create({
+          data: {
+            organizationId: org.id,
+            studentId: member.studentId,
+            groupId: group.id,
+            teacherId: teachers[spec.teacher]!.member.id,
+            scheme: 'POINTS_100',
+            valueNumeric: 65 + ((index * 7 + gradeIndex * 11) % 30),
+            maxValue: 100,
+            title: label,
+            gradedAt: addDays(today, gradeIndex === 0 ? -14 : -4),
+          },
+        });
+        gradeCount += 1;
       }
     }
   }
@@ -238,7 +464,7 @@ async function main() {
       for (const [index, member] of group.members.entries()) {
         const invoice = await prisma.invoice.create({
           data: {
-            organizationId: a.org.id,
+            organizationId: org.id,
             studentId: member.studentId,
             groupId: group.id,
             periodYear: period.y,
@@ -250,16 +476,14 @@ async function main() {
         });
         invoiceCount += 1;
 
-        // Last month is fully settled; this month leaves a realistic tail of debt.
         const isCurrent = period.y === year && period.m === month;
         const behaviour = isCurrent ? index % 3 : 0; // 0 = paid, 1 = partial, 2 = unpaid
         if (behaviour === 2) continue;
 
         const amount = behaviour === 1 ? group.monthlyFeeMinor / 2n : group.monthlyFeeMinor;
-
         await prisma.payment.create({
           data: {
-            organizationId: a.org.id,
+            organizationId: org.id,
             studentId: member.studentId,
             groupId: group.id,
             invoiceId: invoice.id,
@@ -267,7 +491,8 @@ async function main() {
             currency: UZS,
             paidAt: new Date(Date.UTC(period.y, period.m - 1, 3 + (index % 5))),
             method: index % 2 === 0 ? 'CASH' : 'CARD',
-            createdByUserId: a.user.id,
+            receiptNo: `R-${period.y}${String(period.m).padStart(2, '0')}-${randomInt(1000, 9999)}`,
+            createdByUserId: receptionUser.id,
           },
         });
         paymentCount += 1;
@@ -279,45 +504,118 @@ async function main() {
     }
   }
 
-  // ---------------------------------------------------------------- tenant B
-  // A second, unrelated workspace. Nothing here should ever be visible from A.
-  const b = await createTeacher({
-    email: 'boshqa@ustozly.uz',
-    phone: '+998907776655',
+  // Last month's payroll and running costs, so the net figure is a real one.
+  for (const teacher of teachers) {
+    await prisma.salaryPayment.create({
+      data: {
+        organizationId: org.id,
+        memberId: teacher.member.id,
+        periodYear: prevYear,
+        periodMonth: prevMonth,
+        amountMinor: teacher.spec.salaryModel === 'FIXED' ? 6_500_000n : 5_200_000n,
+        currency: UZS,
+        model: teacher.spec.salaryModel,
+        paidAt: new Date(Date.UTC(prevYear, prevMonth - 1, 28)),
+      },
+    });
+  }
+  await prisma.salaryPayment.create({
+    data: {
+      organizationId: org.id,
+      memberId: receptionMember.id,
+      periodYear: prevYear,
+      periodMonth: prevMonth,
+      amountMinor: 4_000_000n,
+      currency: UZS,
+      model: 'FIXED',
+      paidAt: new Date(Date.UTC(prevYear, prevMonth - 1, 28)),
+    },
+  });
+
+  for (const [category, title, amount] of [
+    ['RENT', 'Ijara — oktabr', 8_000_000n],
+    ['UTILITIES', 'Kommunal xizmatlar', 1_200_000n],
+    ['MARKETING', 'Instagram reklama', 900_000n],
+  ] as const) {
+    await prisma.expense.create({
+      data: {
+        organizationId: org.id,
+        category,
+        title,
+        amountMinor: amount,
+        currency: UZS,
+        spentAt: new Date(Date.UTC(year, month - 1, 8)),
+        createdByUserId: ownerUser.id,
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------- centre B
+  // A second, unrelated centre. Nothing here should ever be visible from A.
+  const otherOwner = await createUser({
+    username: 'owner.aliyev',
     firstName: 'Bobur',
     lastName: 'Aliyev',
-    subject: 'Matematika',
-    orgName: 'Bobur Math Center',
+    email: 'boshqa@oquvmarkaz.uz',
+    phone: '+998907776655',
+  });
+  await notificationDefaults(otherOwner.id);
+
+  const orgB = await prisma.organization.create({
+    data: {
+      name: 'Zamon Math Center',
+      slug: `zamon-${randomUUID().slice(0, 6)}`,
+      city: 'Samarqand',
+      phone: '+998662001030',
+      defaultCurrency: UZS,
+      timezone: TZ,
+      members: { create: { userId: otherOwner.id, role: 'OWNER' } },
+    },
+    include: { members: true },
+  });
+  await prisma.subscription.create({
+    data: {
+      organizationId: orgB.id,
+      plan: 'STANDARD',
+      status: 'ACTIVE',
+      subscriptionStartedAt: new Date(Date.now() - 20 * DAY),
+      subscriptionEndsAt: new Date(Date.now() + 10 * DAY),
+      lastPaymentAt: new Date(Date.now() - 20 * DAY),
+      nextPaymentAt: new Date(Date.now() + 10 * DAY),
+      amountMinor: 300_000n,
+      currency: UZS,
+    },
   });
 
   const otherStudent = await prisma.student.create({
     data: {
-      organizationId: b.org.id,
+      organizationId: orgB.id,
       firstName: 'Sirli',
       lastName: 'Oquvchi',
       phone: '+998907770001',
+      studentNo: '2026-0001',
       status: 'ACTIVE',
     },
   });
 
   const otherGroup = await prisma.group.create({
     data: {
-      organizationId: b.org.id,
+      organizationId: orgB.id,
       name: 'Algebra 9-sinf',
       subject: 'Matematika',
-      teacherId: b.member.id,
+      teacherId: orgB.members[0]!.id,
       monthlyFeeMinor: 400_000n,
       currency: UZS,
       weekdays: [2, 5],
       startTime: '16:00',
       endTime: '17:30',
-      members: { create: { organizationId: b.org.id, studentId: otherStudent.id } },
+      members: { create: { organizationId: orgB.id, studentId: otherStudent.id } },
     },
   });
 
   await prisma.invoice.create({
     data: {
-      organizationId: b.org.id,
+      organizationId: orgB.id,
       studentId: otherStudent.id,
       groupId: otherGroup.id,
       periodYear: year,
@@ -328,22 +626,32 @@ async function main() {
     },
   });
 
+  // ---------------------------------------------------------------- report
+  const { printCredentials } = await import('../scripts/create-admin');
+  printCredentials(admin.username, admin.password, admin.rotated);
+
   console.info(`
 seed complete
 -------------
-Workspace A: ${a.org.name}
-  login: ustoz@ustozly.uz  /  +998901112233
-  password: Ustozly2026!
-  students: ${students.length}   groups: ${groups.length}
-  lessons: ${lessonCount}   attendance rows: ${attendanceCount}
-  invoices: ${invoiceCount}   payments: ${paymentCount}
+Centre A: ${org.name}  (Toshkent)
+  subscription: TRIAL, 18 days left of 30
 
-  plan: PRO (so you can add students straight away)
+  owner        owner.karimova
+  reception    reception.tosheva
+  teacher      teacher.saidova     (percentage salary)
+  teacher      teacher.rustamov    (fixed salary)
+  students     ${studentLogins.map((s) => s.username).join(', ')}
 
-Workspace B: ${b.org.name}   (used to verify tenant isolation)
-  login: boshqa@ustozly.uz  /  +998907776655
-  password: Ustozly2026!
-  plan: FREE (10-student ceiling, to see the plan limit in action)
+  password for every seeded centre account: ${DEMO_PASSWORD}
+
+  courses ${courses.length}  groups ${groups.length}  students ${students.length}
+  lessons ${lessonCount}  attendance ${attendanceCount}
+  homework ${homeworkCount}  grades ${gradeCount}
+  invoices ${invoiceCount}  payments ${paymentCount}
+
+Centre B: ${orgB.name}  (Samarqand — used to verify tenant isolation)
+  owner        owner.aliyev
+  subscription: ACTIVE
 `);
 }
 

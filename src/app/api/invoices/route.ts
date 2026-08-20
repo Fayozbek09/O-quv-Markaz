@@ -11,9 +11,9 @@ const querySchema = z.object({
 export const GET = orgRoute(async (ctx, request) => {
   const { year, month } = readQuery(request, querySchema);
   return json({ invoices: await listInvoices(ctx, year, month) });
-});
+}, 'invoices.read');
 
 export const POST = orgMutation(async (ctx, request) => {
   const body = await readJson(request, generateInvoicesSchema);
   return json(await generateInvoices(ctx, body), { status: 201 });
-});
+}, 'invoices.write');

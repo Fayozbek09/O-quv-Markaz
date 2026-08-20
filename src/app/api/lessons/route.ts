@@ -7,10 +7,10 @@ export const GET = orgRoute(async (ctx, request) => {
   const query = readQuery(request, calendarQuerySchema);
   const tz = await orgTimezone(ctx);
   return json({ lessons: await listLessons(ctx, query, tz), timezone: tz });
-});
+}, 'lessons.read');
 
 export const POST = orgMutation(async (ctx, request) => {
   const body = await readJson(request, lessonInputSchema);
   const tz = await orgTimezone(ctx);
   return json(await createLesson(ctx, body, tz), { status: 201 });
-});
+}, 'lessons.write');

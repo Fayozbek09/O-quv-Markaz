@@ -66,7 +66,7 @@ export async function createGroup(ctx: OrgContext, input: GroupInput) {
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'group.create',
     entityType: 'group',
     entityId: group.id,
@@ -104,7 +104,7 @@ export async function updateGroup(ctx: OrgContext, id: string, input: GroupInput
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'group.update',
     entityType: 'group',
     entityId: id,
@@ -144,7 +144,7 @@ export async function addMember(
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'group.member.add',
     entityType: 'group',
     entityId: groupId,
@@ -160,7 +160,7 @@ export async function removeMember(ctx: OrgContext, groupId: string, studentId: 
   if (res.count === 0) throw NotFound();
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'group.member.remove',
     entityType: 'group',
     entityId: groupId,
@@ -202,7 +202,7 @@ export async function generateLessons(
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'group.lessons.generate',
     entityType: 'group',
     entityId: groupId,

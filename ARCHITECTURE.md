@@ -139,3 +139,53 @@ without a single external credential, while the production adapters remain thin.
   few kilobytes on a slow connection.
 - Server components fetch data during render, so a page arrives complete instead
   of empty-then-populated.
+
+
+---
+
+## Role areas
+
+Each role has its own route tree and its own shell, rather than one dashboard
+that hides things:
+
+| Area | Route group | Shell |
+|---|---|---|
+| Centre staff | `src/app/(app)` | Sidebar built from `lib/nav.ts`, filtered by the caller's permission set |
+| Student portal | `src/app/(portal)` | Its own header; no staff navigation exists in the tree |
+| Platform admin | `src/app/admin` | Dark shell, own CSRF provider, own guard in the `(guarded)` segment |
+
+`src/app/admin/layout.tsx` deliberately carries no session logic, so
+`/admin/login` and `/admin/change-password` can render without one; the guard
+lives one level down in `src/app/admin/(guarded)/layout.tsx`.
+
+The sidebar is built server-side by `navFor(role, permissions)`, which filters
+the same permission strings the routes enforce. Hiding a link is a convenience;
+typing the URL by hand reaches the same server check and the same 403.
+
+## Where the new domain logic lives
+
+| Module | Responsibility |
+|---|---|
+| `lib/rbac.ts` | Permission catalogue, role → permission map, grantable overrides, role landing routes |
+| `lib/admin.ts` | Platform-admin context, override auditing, platform statistics, health probes |
+| `lib/auth/admin-session.ts` | Admin sessions and impersonation, entirely separate from centre sessions |
+| `lib/auth/credentials.ts` | Username generation and collision handling, temporary password generation, student numbers |
+| `lib/domain/staff.ts` | Teacher and receptionist provisioning, salary edits, credential re-issue, removal |
+| `lib/domain/portal.ts` | Every student-facing read, scoped from the session's own user id |
+| `lib/domain/subscription.ts` | The subscription state machine, payment application, reminders |
+| `lib/domain/settings.ts` | Runtime platform configuration (price, trial length, grace period) |
+| `lib/domain/salary.ts` | Server-side payroll calculation for four salary models |
+| `lib/domain/finance.ts` | Yearly revenue/cost/net aggregation and the revenue snapshot |
+| `lib/domain/roleDashboards.ts` | The three staff dashboards, each a single batched query set |
+
+## Why the authorization model changed
+
+The original product had four roles on one axis, so `OWNER > ADMIN > TEACHER >
+ASSISTANT` was enough. A centre has roles that genuinely cross: a receptionist
+takes money but never grades, a teacher grades but never takes money. Expressed
+as a rank, either the receptionist could write grades or the teacher could take
+payments — both wrong.
+
+`orgRoute` and `orgMutation` therefore take a permission string instead of a
+minimum role. The change is enforced by the type system: the second argument is
+`Permission`, so a route that forgets to say what it needs does not compile.

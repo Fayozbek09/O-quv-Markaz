@@ -39,7 +39,7 @@ describe('translations', () => {
 
   it('falls back to English for a missing key instead of showing the raw key', () => {
     const t = createTranslator('ru');
-    expect(t('app.name')).toBe('Ustozly');
+    expect(t('app.name')).toBe("O'quv Markaz");
   });
 });
 

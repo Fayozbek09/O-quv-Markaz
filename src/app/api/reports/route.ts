@@ -32,4 +32,4 @@ export const GET = orgRoute(async (ctx, request) => {
   }
 
   return json(report);
-});
+}, 'reports.read');

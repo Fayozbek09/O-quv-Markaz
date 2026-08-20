@@ -11,7 +11,6 @@ const ITEMS: Array<[string, TKey]> = [
   ['/settings/workspace', 'nav.workspace'],
   ['/settings/notifications', 'nav.notifications'],
   ['/settings/security', 'nav.security'],
-  ['/settings/billing', 'nav.billing'],
 ];
 
 export function SettingsNav() {

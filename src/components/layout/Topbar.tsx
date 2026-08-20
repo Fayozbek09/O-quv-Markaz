@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/i18n/provider';
 import { useCsrfToken } from '@/components/providers/CsrfProvider';
 import { LanguageSwitcher } from './LanguageSwitcher';
-import { SidebarNav } from './Sidebar';
+import { SidebarNav, type SidebarItem } from './Sidebar';
 import { Logo } from '@/components/ui/Logo';
 
 export function Topbar({
@@ -14,11 +14,13 @@ export function Topbar({
   userName,
   workspaceName,
   unreadCount,
+  items = [],
 }: {
   title: string;
   userName: string;
   workspaceName: string;
   unreadCount: number;
+  items?: SidebarItem[];
 }) {
   const t = useT();
   const router = useRouter();
@@ -116,7 +118,7 @@ export function Topbar({
                   className="block px-3 py-2 text-sm text-ink-soft hover:bg-surface-muted hover:text-ink">
                   {t('nav.workspace')}
                 </Link>
-                <Link role="menuitem" href="/settings/billing" onClick={() => setMenuOpen(false)}
+                <Link role="menuitem" href="/billing" onClick={() => setMenuOpen(false)}
                   className="block px-3 py-2 text-sm text-ink-soft hover:bg-surface-muted hover:text-ink">
                   {t('nav.billing')}
                 </Link>
@@ -141,7 +143,7 @@ export function Topbar({
 
       {mobileOpen && (
         <div id="mobile-nav" className="border-b border-line bg-surface p-2.5 lg:hidden">
-          <SidebarNav onNavigate={() => setMobileOpen(false)} />
+          <SidebarNav items={items} onNavigate={() => setMobileOpen(false)} />
         </div>
       )}
     </>

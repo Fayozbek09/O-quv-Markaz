@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { paymentProvider, PLANS } from '@/lib/payments';
+import { paymentProvider } from '@/lib/payments';
+import { applySuccessfulPayment } from '@/lib/domain/subscription';
 import { sha256 } from '@/lib/crypto';
 import { audit } from '@/lib/security/audit';
 
@@ -84,10 +85,18 @@ export async function POST(request: Request) {
       where: { id: intent.id },
       data: { status: verification.outcome === 'canceled' ? 'CANCELED' : 'FAILED' },
     });
+    // The attempt is kept in the ledger; a failed charge never touches the term.
+    await prisma.subscriptionPayment.updateMany({
+      where: {
+        organizationId: intent.organizationId,
+        status: 'PENDING',
+        providerTransactionId: intent.providerRef ?? intent.idempotencyKey,
+      },
+      data: { status: 'FAILED', failureReason: verification.outcome },
+    });
     return NextResponse.json({ ok: true });
   }
 
-  const periodDays = PLANS[intent.plan].periodDays ?? 30;
   const now = new Date();
 
   await prisma.$transaction([
@@ -95,39 +104,21 @@ export async function POST(request: Request) {
       where: { id: intent.id },
       data: { status: 'SUCCEEDED', verifiedAt: now },
     }),
-    prisma.subscription.upsert({
-      where: { organizationId: intent.organizationId },
-      create: {
-        organizationId: intent.organizationId,
-        plan: intent.plan,
-        status: 'ACTIVE',
-        currentPeriodStart: now,
-        currentPeriodEnd: new Date(now.getTime() + periodDays * 86_400_000),
-        provider: paymentProvider.name,
-        providerRef: intent.providerRef,
-      },
-      update: {
-        plan: intent.plan,
-        status: 'ACTIVE',
-        currentPeriodStart: now,
-        currentPeriodEnd: new Date(now.getTime() + periodDays * 86_400_000),
-        provider: paymentProvider.name,
-        providerRef: intent.providerRef,
-        cancelAtPeriodEnd: false,
-      },
-    }),
     prisma.webhookEvent.updateMany({
       where: { provider: paymentProvider.name, externalId: verification.externalId },
       data: { processedAt: now },
     }),
   ]);
 
-  await audit({
+  // The term is extended here, from a verified provider event only. Replaying
+  // the same transaction id is a no-op (see applySuccessfulPayment).
+  await applySuccessfulPayment({
     organizationId: intent.organizationId,
-    action: 'billing.subscription.activate',
-    entityType: 'subscription',
-    entityId: intent.organizationId,
-    meta: { plan: intent.plan },
+    amountMinor: intent.amountMinor,
+    currency: intent.currency,
+    provider: paymentProvider.name,
+    providerTransactionId: verification.externalId,
+    paidAt: now,
   });
 
   return NextResponse.json({ ok: true });

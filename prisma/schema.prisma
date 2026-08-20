@@ -1,4 +1,4 @@
-// Ustozly — database schema
+// O'quv Markaz — database schema
 // Tenancy model: every tenant-owned row carries `organizationId`.
 // Authorization is enforced server-side in src/lib/tenant.ts; RLS policies for a
 // Supabase deployment are documented in DATABASE.md.
@@ -23,8 +23,59 @@ enum Locale {
 enum OrgRole {
   OWNER
   ADMIN
+  RECEPTIONIST
   TEACHER
+  STUDENT
+  /// Legacy alias of RECEPTIONIST, kept so existing rows stay readable.
   ASSISTANT
+}
+
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum MemberStatus {
+  ACTIVE
+  ON_LEAVE
+  INACTIVE
+}
+
+enum SalaryModel {
+  FIXED
+  PER_LESSON
+  PERCENTAGE
+  MIXED
+}
+
+enum GradeScheme {
+  POINTS_100
+  POINTS_5
+  LETTER
+}
+
+enum HomeworkStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum SubmissionStatus {
+  ASSIGNED
+  SUBMITTED
+  LATE
+  MISSING
+  GRADED
+}
+
+enum ExpenseCategory {
+  RENT
+  UTILITIES
+  SALARY
+  MARKETING
+  EQUIPMENT
+  TAX
+  OTHER
 }
 
 enum StudentStatus {
@@ -99,9 +150,18 @@ enum IdentityProvider {
 
 enum NotificationType {
   LESSON_UPCOMING
+  LESSON_CANCELLED
+  LESSON_RESCHEDULED
   ATTENDANCE_MISSED
+  HOMEWORK_ASSIGNED
+  HOMEWORK_DUE
+  GRADE_POSTED
   PAYMENT_OVERDUE
+  PAYMENT_RECEIVED
+  STUDENT_REGISTERED
+  SALARY_PAID
   MONTHLY_SUMMARY
+  ANNOUNCEMENT
 }
 
 enum NotificationChannel {
@@ -111,13 +171,27 @@ enum NotificationChannel {
 }
 
 enum SubscriptionPlan {
+  /// The one plan a centre can be on: flat monthly price for the whole centre,
+  /// no per-student component and no student ceiling.
+  STANDARD
+  /// Legacy plans from the single-tutor product, kept so old rows stay readable.
   FREE
   PRO
   ANNUAL
 }
 
 enum SubscriptionStatus {
+  /// First 30 days: full access, no limits, nothing to pay.
+  TRIAL
   ACTIVE
+  /// Term ended, invoice outstanding, still fully usable.
+  PAYMENT_DUE
+  /// Configurable window after PAYMENT_DUE; still fully usable, warned loudly.
+  GRACE_PERIOD
+  /// Grace ran out. Data is intact and exportable; day-to-day writes are held.
+  SUSPENDED
+  CANCELLED
+  /// Legacy values from the single-tutor product.
   PAST_DUE
   CANCELED
   TRIALING
@@ -135,6 +209,8 @@ enum FileKind {
   USER_AVATAR
   STUDENT_AVATAR
   IMPORT_CSV
+  HOMEWORK_ATTACHMENT
+  HOMEWORK_SUBMISSION
 }
 
 enum TelegramTargetType {
@@ -152,18 +228,26 @@ enum MessageStatus {
 // ---------------------------------------------------------------- identity
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String?   @unique
-  emailVerified DateTime?
-  phone         String?   @unique // E.164, normalized
-  phoneVerified DateTime?
-  passwordHash  String? // Argon2id; null for Google-only accounts
-  googleSub     String?   @unique // OIDC subject
-  isActive      Boolean   @default(true)
-  lastLoginAt   DateTime?
-  deletedAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id @default(uuid()) @db.Uuid
+  /// Globally unique login handle. Lowercase; generated for staff/student
+  /// accounts created by a centre, chosen at self-registration.
+  username            String?   @unique @db.VarChar(64)
+  email               String?   @unique
+  emailVerified       DateTime?
+  phone               String?   @unique // E.164, normalized
+  phoneVerified       DateTime?
+  passwordHash        String? // Argon2id; null for Google-only accounts
+  googleSub           String?   @unique // OIDC subject
+  /// Set when an account is created with a temporary password. Every request
+  /// is funnelled to the change-password screen until it is cleared.
+  mustChangePassword  Boolean   @default(false)
+  /// Temporary credentials stop working after this instant.
+  credentialsExpireAt DateTime?
+  isActive            Boolean   @default(true)
+  lastLoginAt         DateTime?
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   profile       Profile?
   memberships   OrganizationMember[]
@@ -173,8 +257,10 @@ model User {
   auditLogs     AuditLog[]
   telegramLinks TelegramAccount[]
   uploadedFiles File[]                   @relation("FileUploader")
+  studentRecord Student?                 @relation("StudentAccount")
 
   @@index([deletedAt])
+  @@index([username])
   @@map("users")
 }
 
@@ -198,18 +284,18 @@ model Profile {
 }
 
 model Session {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @db.Uuid
-  tokenHash    String    @unique // SHA-256 of the opaque session token
-  activeOrgId  String?   @db.Uuid
-  userAgent    String?   @db.VarChar(400)
-  ipHash       String?   @db.VarChar(64) // hashed, never the raw IP
-  csrfSecret   String    @db.VarChar(64)
-  createdAt    DateTime  @default(now())
-  lastSeenAt   DateTime  @default(now())
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  tokenHash         String    @unique // SHA-256 of the opaque session token
+  activeOrgId       String?   @db.Uuid
+  userAgent         String?   @db.VarChar(400)
+  ipHash            String?   @db.VarChar(64) // hashed, never the raw IP
+  csrfSecret        String    @db.VarChar(64)
+  createdAt         DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
   absoluteExpiresAt DateTime
-  expiresAt    DateTime
-  revokedAt    DateTime?
+  expiresAt         DateTime
+  revokedAt         DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -248,57 +334,98 @@ model RateLimitCounter {
 // ---------------------------------------------------------------- tenancy
 
 model Organization {
-  id              String   @id @default(uuid()) @db.Uuid
-  name            String   @db.VarChar(160)
-  slug            String   @unique @db.VarChar(80)
-  address         String?  @db.VarChar(300)
-  phone           String?  @db.VarChar(24)
-  telegramHandle  String?  @db.VarChar(64)
-  defaultCurrency String   @default("UZS") @db.Char(3)
-  timezone        String   @default("Asia/Tashkent") @db.VarChar(64)
-  locale          Locale   @default(UZ)
-  logoFileId      String?  @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String    @db.VarChar(160)
+  /// Registered business name, when it differs from the public one.
+  legalName       String?   @db.VarChar(200)
+  slug            String    @unique @db.VarChar(80)
+  address         String?   @db.VarChar(300)
+  city            String?   @db.VarChar(80)
+  district        String?   @db.VarChar(80)
+  phone           String?   @db.VarChar(24)
+  email           String?   @db.VarChar(320)
+  description     String?   @db.VarChar(2000)
+  website         String?   @db.VarChar(200)
+  instagram       String?   @db.VarChar(80)
+  telegramHandle  String?   @db.VarChar(64)
+  /// [{ weekday: 1..7, open: "09:00", close: "20:00", closed: bool }]
+  workingHours    Json      @default("[]")
+  status          OrgStatus @default(ACTIVE)
+  suspendedAt     DateTime?
+  suspendedReason String?   @db.VarChar(300)
+  defaultCurrency String    @default("UZS") @db.Char(3)
+  timezone        String    @default("Asia/Tashkent") @db.VarChar(64)
+  locale          Locale    @default(UZ)
+  logoFileId      String?   @db.Uuid
   deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  logo          File?                @relation("OrgLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
-  members       OrganizationMember[]
-  students      Student[]
-  groups        Group[]
-  lessons       Lesson[]
-  attendance    Attendance[]
-  invoices      Invoice[]
-  payments      Payment[]
-  adjustments   PaymentAdjustment[]
-  files         File[]
-  auditLogs     AuditLog[]
-  telegram      TelegramAccount[]
-  notifications Notification[]
-  subscription  Subscription?
-  billing       BillingIntent[]
-  messages      OutboundMessage[]
+  logo                 File?                 @relation("OrgLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
+  members              OrganizationMember[]
+  students             Student[]
+  courses              Course[]
+  groups               Group[]
+  homework             Homework[]
+  submissions          HomeworkSubmission[]
+  grades               Grade[]
+  salaryPayments       SalaryPayment[]
+  expenses             Expense[]
+  lessons              Lesson[]
+  attendance           Attendance[]
+  invoices             Invoice[]
+  payments             Payment[]
+  adjustments          PaymentAdjustment[]
+  files                File[]
+  auditLogs            AuditLog[]
+  telegram             TelegramAccount[]
+  notifications        Notification[]
+  subscription         Subscription?
+  billing              BillingIntent[]
+  subscriptionPayments SubscriptionPayment[]
+  messages             OutboundMessage[]
+  impersonations       AdminSession[]
 
   @@index([deletedAt])
+  @@index([status])
   @@map("organizations")
 }
 
 model OrganizationMember {
-  id             String    @id @default(uuid()) @db.Uuid
-  organizationId String    @db.Uuid
-  userId         String    @db.Uuid
-  role           OrgRole   @default(TEACHER)
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  role           OrgRole      @default(TEACHER)
+  status         MemberStatus @default(ACTIVE)
   invitedAt      DateTime?
-  joinedAt       DateTime  @default(now())
+  joinedAt       DateTime     @default(now())
   removedAt      DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  groups       Group[]      @relation("GroupTeacher")
-  lessons      Lesson[]     @relation("LessonTeacher")
+  // ---- employment (teachers and receptionists)
+  specialization    String?     @db.VarChar(160)
+  subject           String?     @db.VarChar(120)
+  hireDate          DateTime?   @db.Date
+  salaryModel       SalaryModel @default(FIXED)
+  /// FIXED / PER_LESSON: the amount. MIXED: the fixed part.
+  salaryAmountMinor BigInt      @default(0)
+  /// PERCENTAGE / MIXED: share of collected group revenue, in basis points.
+  salaryPercentBp   Int         @default(0)
+  currency          String      @default("UZS") @db.Char(3)
+  /// Per-member permission overrides, e.g. { "salary.write": true }. Only a
+  /// permission the role could plausibly hold is honoured; see lib/rbac.ts.
+  permissions       Json        @default("{}")
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groups         Group[]         @relation("GroupTeacher")
+  lessons        Lesson[]        @relation("LessonTeacher")
+  homework       Homework[]      @relation("HomeworkAuthor")
+  grades         Grade[]         @relation("GradeAuthor")
+  salaryPayments SalaryPayment[]
 
   @@unique([organizationId, userId])
   @@index([userId, removedAt])
+  @@index([organizationId, role, removedAt])
   @@map("organization_members")
 }
 
@@ -315,21 +442,31 @@ model Student {
   notes          String?       @db.VarChar(2000)
   status         StudentStatus @default(ACTIVE)
   avatarFileId   String?       @db.Uuid
+  /// Portal login. Null until the centre issues the student credentials.
+  userId         String?       @unique @db.Uuid
+  /// Human-facing identifier printed on receipts, unique inside the centre.
+  studentNo      String?       @db.VarChar(24)
+  address        String?       @db.VarChar(300)
+  enrolledAt     DateTime      @default(now())
   externalRef    String?       @db.VarChar(64) // used for CSV duplicate detection
   archivedAt     DateTime?
   deletedAt      DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  avatar       File?           @relation("StudentAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  avatar       File?                @relation("StudentAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
+  user         User?                @relation("StudentAccount", fields: [userId], references: [id], onDelete: SetNull)
   parents      StudentParent[]
   memberships  GroupMember[]
   attendance   Attendance[]
   invoices     Invoice[]
   payments     Payment[]
   messages     OutboundMessage[]
+  submissions  HomeworkSubmission[]
+  grades       Grade[]
 
+  @@unique([organizationId, studentNo])
   @@index([organizationId, status])
   @@index([organizationId, lastName, firstName])
   @@index([organizationId, deletedAt])
@@ -337,17 +474,17 @@ model Student {
 }
 
 model StudentParent {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @db.Uuid
-  studentId      String   @db.Uuid
-  fullName       String   @db.VarChar(160)
-  phone          String?  @db.VarChar(24)
-  relation       String?  @db.VarChar(40)
-  telegramChatId BigInt? // set only after explicit consent via link token
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  studentId        String    @db.Uuid
+  fullName         String    @db.VarChar(160)
+  phone            String?   @db.VarChar(24)
+  relation         String?   @db.VarChar(40)
+  telegramChatId   BigInt? // set only after explicit consent via link token
   telegramLinkedAt DateTime?
-  isPrimary      Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isPrimary        Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
@@ -358,31 +495,38 @@ model StudentParent {
 // ---------------------------------------------------------------- groups & lessons
 
 model Group {
-  id             String      @id @default(uuid()) @db.Uuid
-  organizationId String      @db.Uuid
-  name           String      @db.VarChar(120)
-  subject        String?     @db.VarChar(120)
-  teacherId      String?     @db.Uuid // OrganizationMember
-  monthlyFeeMinor BigInt     @default(0)
-  currency       String      @default("UZS") @db.Char(3)
-  color          String      @default("#2563eb") @db.VarChar(9)
-  status         GroupStatus @default(ACTIVE)
+  id              String      @id @default(uuid()) @db.Uuid
+  organizationId  String      @db.Uuid
+  name            String      @db.VarChar(120)
+  subject         String?     @db.VarChar(120)
+  courseId        String?     @db.Uuid
+  teacherId       String?     @db.Uuid // OrganizationMember
+  capacity        Int?
+  startDate       DateTime?   @db.Date
+  endDate         DateTime?   @db.Date
+  monthlyFeeMinor BigInt      @default(0)
+  currency        String      @default("UZS") @db.Char(3)
+  color           String      @default("#2563eb") @db.VarChar(9)
+  status          GroupStatus @default(ACTIVE)
   // recurring schedule
-  weekdays       Int[] // 1 = Monday ... 7 = Sunday
-  startTime      String?     @db.VarChar(5) // "18:00" local to org timezone
-  endTime        String?     @db.VarChar(5)
-  room           String?     @db.VarChar(80)
-  archivedAt     DateTime?
-  deletedAt      DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  weekdays        Int[] // 1 = Monday ... 7 = Sunday
+  startTime       String?     @db.VarChar(5) // "18:00" local to org timezone
+  endTime         String?     @db.VarChar(5)
+  room            String?     @db.VarChar(80)
+  archivedAt      DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course       Course?             @relation(fields: [courseId], references: [id], onDelete: SetNull)
   teacher      OrganizationMember? @relation("GroupTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
   members      GroupMember[]
   lessons      Lesson[]
   invoices     Invoice[]
   payments     Payment[]
+  homework     Homework[]
+  grades       Grade[]
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
@@ -390,12 +534,12 @@ model Group {
 }
 
 model GroupMember {
-  id             String    @id @default(uuid()) @db.Uuid
-  organizationId String    @db.Uuid
-  groupId        String    @db.Uuid
-  studentId      String    @db.Uuid
-  joinedAt       DateTime  @default(now())
-  leftAt         DateTime?
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  groupId          String    @db.Uuid
+  studentId        String    @db.Uuid
+  joinedAt         DateTime  @default(now())
+  leftAt           DateTime?
   // per-student override of the group fee; null = use group monthly fee
   feeOverrideMinor BigInt?
 
@@ -427,6 +571,7 @@ model Lesson {
   group        Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
   teacher      OrganizationMember? @relation("LessonTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
   attendance   Attendance[]
+  grades       Grade[]
 
   @@unique([groupId, startsAt])
   @@index([organizationId, startsAt])
@@ -487,20 +632,20 @@ model Invoice {
 
 /// Received money. Rows are immutable — corrections go to payment_adjustments.
 model Payment {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @db.Uuid
-  studentId      String        @db.Uuid
-  groupId        String?       @db.Uuid
-  invoiceId      String?       @db.Uuid
-  amountMinor    BigInt
-  currency       String        @default("UZS") @db.Char(3)
-  paidAt         DateTime
-  method         PaymentMethod @default(CASH)
-  status         PaymentStatus @default(COMPLETED)
-  note           String?       @db.VarChar(300)
-  receiptNo      String?       @db.VarChar(40)
-  createdByUserId String?      @db.Uuid
-  createdAt      DateTime      @default(now())
+  id              String        @id @default(uuid()) @db.Uuid
+  organizationId  String        @db.Uuid
+  studentId       String        @db.Uuid
+  groupId         String?       @db.Uuid
+  invoiceId       String?       @db.Uuid
+  amountMinor     BigInt
+  currency        String        @default("UZS") @db.Char(3)
+  paidAt          DateTime
+  method          PaymentMethod @default(CASH)
+  status          PaymentStatus @default(COMPLETED)
+  note            String?       @db.VarChar(300)
+  receiptNo       String?       @db.VarChar(40)
+  createdByUserId String?       @db.Uuid
+  createdAt       DateTime      @default(now())
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -559,34 +704,34 @@ model TelegramAccount {
 }
 
 model TelegramLinkToken {
-  id             String    @id @default(uuid()) @db.Uuid
-  organizationId String    @db.Uuid
-  tokenHash      String    @unique
-  targetType     TelegramTargetType
-  studentId      String?   @db.Uuid
-  createdByUserId String?  @db.Uuid
-  expiresAt      DateTime
-  consumedAt     DateTime?
-  createdAt      DateTime  @default(now())
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @db.Uuid
+  tokenHash       String             @unique
+  targetType      TelegramTargetType
+  studentId       String?            @db.Uuid
+  createdByUserId String?            @db.Uuid
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime           @default(now())
 
   @@index([organizationId, expiresAt])
   @@map("telegram_link_tokens")
 }
 
 model OutboundMessage {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @db.Uuid
-  studentId      String?       @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
+  studentId      String?             @db.Uuid
   channel        NotificationChannel @default(TELEGRAM)
-  recipientRef   String        @db.VarChar(64) // telegram chat id as text
-  templateKey    String        @db.VarChar(80)
+  recipientRef   String              @db.VarChar(64) // telegram chat id as text
+  templateKey    String              @db.VarChar(80)
   locale         Locale
-  body           String        @db.VarChar(2000)
-  status         MessageStatus @default(QUEUED)
-  error          String?       @db.VarChar(400)
-  sentByUserId   String?       @db.Uuid
-  dedupeKey      String?       @unique @db.VarChar(160)
-  createdAt      DateTime      @default(now())
+  body           String              @db.VarChar(2000)
+  status         MessageStatus       @default(QUEUED)
+  error          String?             @db.VarChar(400)
+  sentByUserId   String?             @db.Uuid
+  dedupeKey      String?             @unique @db.VarChar(160)
+  createdAt      DateTime            @default(now())
   sentAt         DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -597,13 +742,13 @@ model OutboundMessage {
 }
 
 model WebhookEvent {
-  id           String   @id @default(uuid()) @db.Uuid
-  provider     String   @db.VarChar(40)
-  externalId   String   @db.VarChar(160)
-  signatureOk  Boolean
-  payloadHash  String   @db.VarChar(64)
-  processedAt  DateTime?
-  createdAt    DateTime @default(now())
+  id          String    @id @default(uuid()) @db.Uuid
+  provider    String    @db.VarChar(40)
+  externalId  String    @db.VarChar(160)
+  signatureOk Boolean
+  payloadHash String    @db.VarChar(64)
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
 
   @@unique([provider, externalId])
   @@map("webhook_events")
@@ -647,37 +792,108 @@ model NotificationPreference {
 // ---------------------------------------------------------------- billing
 
 model Subscription {
-  id                 String             @id @default(uuid()) @db.Uuid
-  organizationId     String             @unique @db.Uuid
-  plan               SubscriptionPlan   @default(FREE)
-  status             SubscriptionStatus @default(ACTIVE)
-  currentPeriodStart DateTime           @default(now())
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @unique @db.Uuid
+  plan           SubscriptionPlan   @default(STANDARD)
+  status         SubscriptionStatus @default(TRIAL)
+
+  // ---- trial
+  trialStartedAt DateTime?
+  trialEndsAt    DateTime?
+
+  // ---- paid term
+  subscriptionStartedAt DateTime?
+  subscriptionEndsAt    DateTime?
+  graceEndsAt           DateTime?
+  lastPaymentAt         DateTime?
+  nextPaymentAt         DateTime?
+
+  /// Price agreed with this centre, snapshotted from platform settings so a
+  /// later price change does not silently re-bill an existing customer.
+  amountMinor BigInt @default(300000)
+  currency    String @default("UZS") @db.Char(3)
+
+  currentPeriodStart DateTime  @default(now())
   currentPeriodEnd   DateTime?
-  cancelAtPeriodEnd  Boolean            @default(false)
-  provider           String?            @db.VarChar(40)
-  providerRef        String?            @db.VarChar(160)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  cancelAtPeriodEnd  Boolean   @default(false)
+  provider           String?   @db.VarChar(40)
+  providerRef        String?   @db.VarChar(160)
+  /// Reminder milestones already sent (7 / 3 / 1 / 0 days), so a scheduled run
+  /// is idempotent and nobody gets the same warning twice.
+  remindersSent      Json      @default("[]")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payments     SubscriptionPayment[]
 
+  @@index([status, subscriptionEndsAt])
+  @@index([status, trialEndsAt])
   @@map("subscriptions")
 }
 
+enum SubscriptionPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+/// A settled (or attempted) subscription charge. Written only from a
+/// server-verified provider signal — never from a browser callback.
+model SubscriptionPayment {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  organizationId        String                    @db.Uuid
+  subscriptionId        String                    @db.Uuid
+  amountMinor           BigInt
+  currency              String                    @default("UZS") @db.Char(3)
+  provider              String                    @db.VarChar(40)
+  providerTransactionId String?                   @db.VarChar(160)
+  status                SubscriptionPaymentStatus @default(PENDING)
+  /// Term this charge bought, so history reads as "paid for March".
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  failureReason         String?                   @db.VarChar(300)
+  createdAt             DateTime                  @default(now())
+  paidAt                DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerTransactionId])
+  @@index([organizationId, createdAt])
+  @@index([status, paidAt])
+  @@map("subscription_payments")
+}
+
+/// Platform-wide configuration the admin can change without a deploy: the
+/// monthly price, the trial length and the grace window all live here rather
+/// than in a constant somewhere in the codebase.
+model PlatformSetting {
+  key         String   @id @db.VarChar(64)
+  value       Json
+  description String?  @db.VarChar(300)
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("platform_settings")
+}
+
 model BillingIntent {
-  id             String              @id @default(uuid()) @db.Uuid
-  organizationId String              @db.Uuid
-  plan           SubscriptionPlan
-  amountMinor    BigInt
-  currency       String              @default("UZS") @db.Char(3)
-  provider       String              @db.VarChar(40)
-  providerRef    String?             @db.VarChar(160)
-  idempotencyKey String              @unique @db.VarChar(120)
-  status         BillingIntentStatus @default(PENDING)
-  verifiedAt     DateTime?
-  createdByUserId String?            @db.Uuid
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id              String              @id @default(uuid()) @db.Uuid
+  organizationId  String              @db.Uuid
+  plan            SubscriptionPlan
+  amountMinor     BigInt
+  currency        String              @default("UZS") @db.Char(3)
+  provider        String              @db.VarChar(40)
+  providerRef     String?             @db.VarChar(160)
+  idempotencyKey  String              @unique @db.VarChar(120)
+  status          BillingIntentStatus @default(PENDING)
+  verifiedAt      DateTime?
+  createdByUserId String?             @db.Uuid
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -688,25 +904,27 @@ model BillingIntent {
 // ---------------------------------------------------------------- files & audit
 
 model File {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String?  @db.Uuid // null for user-scoped files (avatars)
-  ownerUserId    String?  @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String?   @db.Uuid // null for user-scoped files (avatars)
+  ownerUserId    String?   @db.Uuid
   kind           FileKind
-  storageKey     String   @unique @db.VarChar(300)
-  mimeType       String   @db.VarChar(80)
+  storageKey     String    @unique @db.VarChar(300)
+  mimeType       String    @db.VarChar(80)
   sizeBytes      Int
-  sha256         String   @db.VarChar(64)
+  sha256         String    @db.VarChar(64)
   width          Int?
   height         Int?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
   deletedAt      DateTime?
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   uploader     User?         @relation("FileUploader", fields: [ownerUserId], references: [id], onDelete: SetNull)
 
-  orgLogos      Organization[] @relation("OrgLogo")
-  profileAvatar Profile[]      @relation("ProfileAvatar")
-  studentAvatar Student[]      @relation("StudentAvatar")
+  orgLogos      Organization[]       @relation("OrgLogo")
+  profileAvatar Profile[]            @relation("ProfileAvatar")
+  studentAvatar Student[]            @relation("StudentAvatar")
+  homeworkFiles HomeworkAttachment[]
+  submissions   HomeworkSubmission[] @relation("SubmissionFile")
 
   @@index([organizationId, kind])
   @@map("files")
@@ -716,6 +934,10 @@ model AuditLog {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String?  @db.Uuid
   actorUserId    String?  @db.Uuid
+  /// Set when the actor was a platform administrator rather than a centre user.
+  actorAdminId   String?  @db.Uuid
+  /// True when a platform admin acted inside a centre they do not belong to.
+  isOverride     Boolean  @default(false)
   action         String   @db.VarChar(80)
   entityType     String?  @db.VarChar(60)
   entityId       String?  @db.VarChar(64)
@@ -725,10 +947,236 @@ model AuditLog {
   meta           Json     @default("{}")
   createdAt      DateTime @default(now())
 
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorAdmin   PlatformAdmin? @relation(fields: [actorAdminId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
   @@index([actorUserId, createdAt])
+  @@index([actorAdminId, createdAt])
+  @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------- platform administration
+
+/// Platform staff. Deliberately a separate table from `users`: a centre account
+/// can never be escalated into a platform administrator by flipping a column,
+/// and admin sessions live in their own cookie and their own table.
+model PlatformAdmin {
+  id                 String    @id @default(uuid()) @db.Uuid
+  username           String    @unique @db.VarChar(64)
+  fullName           String    @db.VarChar(160)
+  email              String?   @unique @db.VarChar(320)
+  passwordHash       String
+  mustChangePassword Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  lastLoginAt        DateTime?
+  failedAttempts     Int       @default(0)
+  lockedUntil        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  sessions  AdminSession[]
+  auditLogs AuditLog[]
+
+  @@map("platform_admins")
+}
+
+model AdminSession {
+  id                     String    @id @default(uuid()) @db.Uuid
+  adminId                String    @db.Uuid
+  tokenHash              String    @unique
+  csrfSecret             String    @db.VarChar(64)
+  userAgent              String?   @db.VarChar(400)
+  ipHash                 String?   @db.VarChar(64)
+  /// Non-null while the admin is viewing a centre through the override path.
+  impersonatingOrgId     String?   @db.Uuid
+  impersonationStartedAt DateTime?
+  createdAt              DateTime  @default(now())
+  lastSeenAt             DateTime  @default(now())
+  expiresAt              DateTime
+  absoluteExpiresAt      DateTime
+  revokedAt              DateTime?
+
+  admin        PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [impersonatingOrgId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, revokedAt])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+// ---------------------------------------------------------------- curriculum
+
+model Course {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @db.Uuid
+  name            String    @db.VarChar(120)
+  /// Stable key for the built-in catalogue (english, ielts, math…); null for
+  /// a course the centre typed in itself.
+  catalogKey      String?   @db.VarChar(40)
+  description     String?   @db.VarChar(1000)
+  defaultFeeMinor BigInt    @default(0)
+  currency        String    @default("UZS") @db.Char(3)
+  durationMonths  Int?
+  color           String    @default("#2563eb") @db.VarChar(9)
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  groups       Group[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+  @@map("courses")
+}
+
+// ---------------------------------------------------------------- homework & grades
+
+model Homework {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  groupId        String         @db.Uuid
+  teacherId      String?        @db.Uuid // OrganizationMember
+  title          String         @db.VarChar(200)
+  description    String?        @db.VarChar(4000)
+  dueAt          DateTime
+  status         HomeworkStatus @default(PUBLISHED)
+  maxScore       Int?
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  group        Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher      OrganizationMember?  @relation("HomeworkAuthor", fields: [teacherId], references: [id], onDelete: SetNull)
+  attachments  HomeworkAttachment[]
+  submissions  HomeworkSubmission[]
+  grades       Grade[]
+
+  @@index([organizationId, dueAt])
+  @@index([organizationId, groupId, dueAt])
+  @@map("homework")
+}
+
+model HomeworkAttachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  homeworkId String   @db.Uuid
+  fileId     String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  file     File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([homeworkId, fileId])
+  @@map("homework_attachments")
+}
+
+model HomeworkSubmission {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  homeworkId     String           @db.Uuid
+  studentId      String           @db.Uuid
+  status         SubmissionStatus @default(ASSIGNED)
+  submittedAt    DateTime?
+  note           String?          @db.VarChar(2000)
+  fileId         String?          @db.Uuid
+  score          Int?
+  feedback       String?          @db.VarChar(2000)
+  markedByUserId String?          @db.Uuid
+  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  homework     Homework     @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  file         File?        @relation("SubmissionFile", fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@unique([homeworkId, studentId])
+  @@index([organizationId, studentId])
+  @@map("homework_submissions")
+}
+
+/// One recorded mark. `scheme` decides how `valueNumeric` / `valueLetter` are
+/// read, so a centre can move to another grading system without a migration.
+model Grade {
+  id             String      @id @default(uuid()) @db.Uuid
+  organizationId String      @db.Uuid
+  studentId      String      @db.Uuid
+  groupId        String?     @db.Uuid
+  lessonId       String?     @db.Uuid
+  homeworkId     String?     @db.Uuid
+  teacherId      String?     @db.Uuid // OrganizationMember
+  scheme         GradeScheme @default(POINTS_100)
+  valueNumeric   Int?
+  valueLetter    String?     @db.VarChar(4)
+  maxValue       Int?
+  weightBp       Int         @default(10000)
+  title          String?     @db.VarChar(160)
+  comment        String?     @db.VarChar(1000)
+  gradedAt       DateTime    @default(now())
+  deletedAt      DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group        Group?              @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  lesson       Lesson?             @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  homework     Homework?           @relation(fields: [homeworkId], references: [id], onDelete: SetNull)
+  teacher      OrganizationMember? @relation("GradeAuthor", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, studentId, gradedAt])
+  @@index([organizationId, groupId, gradedAt])
+  @@map("grades")
+}
+
+// ---------------------------------------------------------------- payroll & expenses
+
+/// A salary payout. Append-only, like `payments`: a mistake is corrected with a
+/// compensating row, never by editing history.
+model SalaryPayment {
+  id              String      @id @default(uuid()) @db.Uuid
+  organizationId  String      @db.Uuid
+  memberId        String      @db.Uuid // OrganizationMember
+  periodYear      Int
+  periodMonth     Int // 1..12
+  amountMinor     BigInt
+  currency        String      @default("UZS") @db.Char(3)
+  model           SalaryModel @default(FIXED)
+  /// Snapshot of how the figure was reached: lessons taught, revenue share…
+  basis           Json        @default("{}")
+  paidAt          DateTime
+  note            String?     @db.VarChar(300)
+  createdByUserId String?     @db.Uuid
+  createdAt       DateTime    @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, periodYear, periodMonth])
+  @@index([organizationId, memberId, paidAt])
+  @@map("salary_payments")
+}
+
+/// Non-payroll cost, so the centre's net figure is a real one.
+model Expense {
+  id              String          @id @default(uuid()) @db.Uuid
+  organizationId  String          @db.Uuid
+  category        ExpenseCategory @default(OTHER)
+  title           String          @db.VarChar(200)
+  amountMinor     BigInt
+  currency        String          @default("UZS") @db.Char(3)
+  spentAt         DateTime
+  note            String?         @db.VarChar(300)
+  createdByUserId String?         @db.Uuid
+  createdAt       DateTime        @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, spentAt])
+  @@map("expenses")
 }

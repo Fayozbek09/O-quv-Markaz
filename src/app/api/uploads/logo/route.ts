@@ -12,8 +12,8 @@ const MAX_MULTIPART_BYTES = 4 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireOrg('ADMIN');
-    await assertCsrf(ctx.user.csrfSecret);
+    const ctx = await requireOrg('center.settings');
+    await assertCsrf(ctx.csrfSecret);
     await enforce('upload:org', ctx.orgId);
 
     const declared = request.headers.get('content-length');
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       const created = await tx.file.create({
         data: {
           organizationId: ctx.orgId,
-          ownerUserId: ctx.user.userId,
+          ownerUserId: ctx.actorUserId,
           kind: 'ORG_LOGO',
           storageKey,
           mimeType: image.mimeType,
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     await audit({
       organizationId: ctx.orgId,
-      actorUserId: ctx.user.userId,
+      actorUserId: ctx.actorUserId,
       action: 'file.upload',
       entityType: 'file',
       entityId: record.created.id,

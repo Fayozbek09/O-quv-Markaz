@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { db, truncateAll } from '../factories';
+import { db } from '../factories';
 import { requestOtp, verifyOtp, OTP_MAX_ATTEMPTS } from '@/lib/auth/otp';
 
 /** Covers acceptance criteria 6-9: invalid, expired, replayed and brute-forced codes. */

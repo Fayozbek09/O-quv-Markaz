@@ -5,7 +5,7 @@ import { randomToken, sha256, hashIp } from '../crypto';
 // isProd is no longer needed here: the session cookie is always Secure.
 import type { OrgRole } from '@/generated/prisma/enums';
 
-export const SESSION_COOKIE = '__Host-ustozly_session';
+export const SESSION_COOKIE = '__Host-omarkaz_session';
 const IDLE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days of inactivity
 const ABSOLUTE_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days maximum
 const RENEW_THRESHOLD_MS = 1000 * 60 * 30;
@@ -25,6 +25,12 @@ export type SessionUser = {
   avatarFileId: string | null;
   activeOrgId: string | null;
   role: OrgRole | null;
+  /** organization_members.id for the active centre. */
+  memberId: string | null;
+  /** Per-member permission overrides, as stored on the membership row. */
+  memberPermissions: unknown;
+  /** True while the account still holds the temporary password it was issued. */
+  mustChangePassword: boolean;
 };
 
 function cookieOptions(maxAgeSeconds: number) {
@@ -135,13 +141,20 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 
   let activeOrgId = session.activeOrgId;
   let role: OrgRole | null = null;
+  let memberId: string | null = null;
+  let memberPermissions: unknown = {};
 
   if (activeOrgId) {
     const membership = await prisma.organizationMember.findFirst({
       where: { organizationId: activeOrgId, userId: session.userId, removedAt: null },
     });
-    if (membership) role = membership.role;
-    else activeOrgId = null; // membership was revoked — drop the tenant context
+    if (membership) {
+      role = membership.role;
+      memberId = membership.id;
+      memberPermissions = membership.permissions;
+    } else {
+      activeOrgId = null; // membership was revoked — drop the tenant context
+    }
   }
 
   if (!activeOrgId) {
@@ -152,7 +165,24 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     if (fallback) {
       activeOrgId = fallback.organizationId;
       role = fallback.role;
+      memberId = fallback.id;
+      memberPermissions = fallback.permissions;
       await prisma.session.update({ where: { id: session.id }, data: { activeOrgId } });
+    }
+  }
+
+  // A suspended centre is invisible to its own members: the membership stays,
+  // but the tenant context is dropped until the platform reactivates it.
+  if (activeOrgId) {
+    const org = await prisma.organization.findFirst({
+      where: { id: activeOrgId, deletedAt: null, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!org) {
+      activeOrgId = null;
+      role = null;
+      memberId = null;
+      memberPermissions = {};
     }
   }
 
@@ -172,6 +202,9 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     avatarFileId: p?.avatarFileId ?? null,
     activeOrgId,
     role,
+    memberId,
+    memberPermissions,
+    mustChangePassword: session.user.mustChangePassword,
   };
 });
 

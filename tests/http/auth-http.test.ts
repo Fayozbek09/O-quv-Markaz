@@ -96,7 +96,7 @@ describe('session cookie hardening', () => {
       json: { identifier: alice.user.email, password: PASSWORD },
     });
 
-    const cookie = (res.headers.getSetCookie?.() ?? []).find((c) => c.includes('ustozly_session'));
+    const cookie = (res.headers.getSetCookie?.() ?? []).find((c) => c.includes('omarkaz_session'));
     expect(cookie).toBeDefined();
     expect(cookie).toContain('__Host-');
     expect(cookie).toMatch(/HttpOnly/i);
@@ -310,5 +310,20 @@ describe('login throttling', () => {
     });
     expect(missing.status).toBe(401);
     expect((await missing.json()).messageKey).toBe('auth.invalidCredentials');
+  });
+});
+
+describe('detail pages answer 404, not 500, for a foreign id', () => {
+  it('renders not-found rather than an error page for another tenant', async () => {
+    // The API already answers 404; a server component that lets the domain
+    // error escape would render a 500 instead, which is both wrong and a hint
+    // that something unusual happened.
+    const res = await aliceSession.fetch(`/students/${bobStudentId}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('renders not-found for a malformed id', async () => {
+    const res = await aliceSession.fetch('/students/not-a-uuid');
+    expect(res.status).toBe(404);
   });
 });

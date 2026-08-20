@@ -27,11 +27,13 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const result = await apiFetch<{ hasWorkspace: boolean }>('/api/auth/login', {
-        method: 'POST',
-        body: { identifier, password },
-      });
-      router.push(result.hasWorkspace ? '/dashboard' : '/onboarding');
+      // The destination is decided server-side from the membership row. The
+      // client never states a role, and a `?role=` in the URL is ignored.
+      const result = await apiFetch<{ hasWorkspace: boolean; redirectTo: string }>(
+        '/api/auth/login',
+        { method: 'POST', body: { identifier, password } },
+      );
+      router.push(result.redirectTo || (result.hasWorkspace ? '/dashboard' : '/onboarding'));
       router.refresh();
     } catch (err) {
       setError(messageFor(t, err));
@@ -56,15 +58,14 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         <FormError message={error} />
 
         <TextField
-          label={`${t('auth.phone')} / ${t('auth.email')}`}
+          label={`${t('staff.username')} / ${t('auth.phone')} / ${t('auth.email')}`}
           name="identifier"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
           autoComplete="username"
-          inputMode="email"
           required
           autoFocus
-          placeholder="+998 90 123 45 67"
+          placeholder="teacher.karimova"
         />
 
         <div>

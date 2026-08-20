@@ -3,6 +3,7 @@ import { json, readJson, userMutation } from '@/lib/api';
 import { onboardingSchema } from '@/lib/validation/schemas';
 import { switchOrganization } from '@/lib/auth/session';
 import { audit } from '@/lib/security/audit';
+import { startTrial } from '@/lib/domain/subscription';
 import { Conflict } from '@/lib/errors';
 import { randomBytes } from 'node:crypto';
 
@@ -33,7 +34,6 @@ export const POST = userMutation(async (user, request) => {
         defaultCurrency: body.currency,
         timezone: body.timezone,
         members: { create: { userId: user.userId, role: 'OWNER' } },
-        subscription: { create: { plan: 'FREE' } },
       },
     });
 
@@ -58,6 +58,7 @@ export const POST = userMutation(async (user, request) => {
     return created;
   });
 
+  await startTrial(org.id);
   await switchOrganization(user.sessionId, user.userId, org.id);
   await audit({
     organizationId: org.id,

@@ -10,6 +10,7 @@ src/generated/
 *.pem
 *.key
 storage/uploads/*
+storage/test-uploads/
 !storage/uploads/.gitkeep
 .DS_Store
 npm-debug.log*

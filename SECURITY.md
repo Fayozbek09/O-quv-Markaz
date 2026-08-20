@@ -80,26 +80,83 @@ an SMS gateway. This is gated on `NODE_ENV !== 'production'`.
 
 ## 3. Authorization
 
-Two questions are answered on every request, always on the server:
+Three questions are answered on every request, always on the server:
 
-1. **Which workspace?** — `ctx.orgId` comes from the session row, never from the
+1. **Who is this?** — a centre session (`__Host-omarkaz_session`) or a platform
+   admin session (`__Host-omarkaz_admin`). They are different cookies, different
+   tables and different resolvers; neither can be read as the other.
+2. **Which centre?** — `ctx.orgId` comes from the session row, never from the
    URL, the body or a header.
-2. **What may this member do?** — `OWNER > ADMIN > TEACHER > ASSISTANT`, checked
-   by `requireOrg(minRole)`.
+3. **What may this member do?** — an explicit permission set, not a rank.
 
-| Operation | Minimum role |
+### The permission matrix
+
+Rank comparison was removed because the roles do not order on a single axis: a
+receptionist may create students but not write grades, and a teacher may write
+grades but not take payments. `src/lib/rbac.ts` holds a flat catalogue of
+permission strings and a map from role to the set it holds. Every route names
+the permission it needs:
+
+```ts
+export const POST = orgMutation(async (ctx, request) => { … }, 'payments.create');
+```
+
+| Role | Holds |
 |---|---|
-| Read the roster, calendar, payments | ASSISTANT |
-| Create or edit students, groups, lessons, attendance, payments | TEACHER |
-| Reverse a payment, edit workspace settings, upload a logo | ADMIN |
-| Start a billing checkout | OWNER |
+| `OWNER` | Everything except the three `platform.*` capabilities |
+| `ADMIN` | Owner minus `center.delete` and `center.billing` |
+| `RECEPTIONIST` | Students, groups, enrolment, payments, invoices, schedules, read-only teachers and reports |
+| `TEACHER` | Their own groups: lessons, attendance, homework, grades, plus `salary.read` scoped to themselves |
+| `STUDENT` | Nothing. The portal reads through `lib/domain/portal.ts` instead |
 
-There is no client-side filtering anywhere. A list query that forgot its
-`organizationId` would return another tenant's rows, so the filter is applied
-through the `scope` helpers rather than written out by hand at each call site.
+`platform.centers`, `platform.impersonate` and `platform.audit` are held by no
+centre role, and a test asserts that for every role.
+
+### Per-member overrides
+
+An owner may widen a member slightly — for example letting a receptionist mark
+attendance. Overrides are filtered through `GRANTABLE`, a per-role allow-list,
+so writing `{"center.delete": true}` onto a receptionship is ignored even if it
+reaches the database column. Revocations are always honoured, because they can
+only narrow an account.
+
+### Row-level scoping on top of permissions
+
+A permission is necessary but not sufficient. A teacher holds `grades.write`,
+but `createGrade` still checks that the group is one they teach; `listHomework`
+adds `group: { teacherId: ctx.memberId }` to the query rather than filtering in
+the UI. The same is true of `salary.read`: the salaries endpoint returns one
+line — their own — when the caller is a teacher.
 
 **Missing rows return 404, not 403.** A 403 would confirm that an id exists,
 which is itself a disclosure.
+
+### The platform administrator
+
+`/admin` is a separate authentication system:
+
+- its own table (`platform_admins`), so no column on `users` can be flipped to
+  gain it;
+- its own cookie, `SameSite=Strict`, 2-hour idle / 8-hour absolute lifetime;
+- its own rate-limit buckets plus a per-account lockout after 8 failures;
+- a 16-character password floor and a rotation flow that revokes every session.
+
+A signed-in centre user hitting an admin route gets 403 and an
+`admin.access.denied` audit entry; an anonymous one gets 401. Both see the same
+response body.
+
+**Overrides are never silent.** To work inside a centre the admin must start an
+impersonation with a written reason, which is audited *before* the session
+flips. Every page then carries a red `YOU ARE VIEWING AS CENTRE ADMIN` bar, and
+every write made in that state is stored with `actorAdminId` and
+`isOverride = true`.
+
+### Subscription state is not an authorization bypass
+
+A lapsed subscription holds *new writes* (402) but never hides or deletes
+anything. `center.billing`, `center.settings` and `reports.export` stay
+available so an owner can always pay and always leave with their data. Platform
+admins working in support are not blocked.
 
 ---
 
@@ -117,9 +174,20 @@ Every tenant-owned table carries `organizationId` with a foreign key and
 Writes use `updateMany` with the tenant filter, so a mismatched workspace
 updates zero rows rather than one wrong row.
 
-Verified by `tests/security/tenant-isolation.test.ts` (24 tests) and
-`tests/http/auth-http.test.ts`: reading, updating, archiving, relating,
-aggregating and reminder-sending are each attempted across a tenant boundary.
+Verified by `tests/security/tenant-isolation.test.ts` and
+`tests/security/tenant-isolation-extended.test.ts`, which repeat the exercise
+for every entity the platform added — homework, submissions, grades, courses,
+staff records, salary sheets, payouts and expenses — and by
+`tests/http/auth-http.test.ts` and `tests/http/admin-http.test.ts` at the HTTP
+layer. Reading, updating, archiving, relating, aggregating, credential
+re-issuing and reminder-sending are each attempted across a tenant boundary.
+
+**The student portal is scoped by identity, not by parameter.** Every function
+in `lib/domain/portal.ts` starts from the session's own `users.id`, resolves the
+single `students` row linked to it, and filters by that id. There is no student
+id argument anywhere in the portal API, so there is nothing for a student to
+tamper with — one student cannot request another student's grades because the
+request has no field in which to name them.
 
 ---
 
@@ -207,7 +275,19 @@ the limit.
 | Telegram sends per workspace | 60 / hour |
 | Telegram sends per student | 2 / day |
 | Uploads per workspace | 60 / hour |
-| Billing checkouts per workspace | 10 / hour |
+| Billing checkouts per centre | 10 / hour |
+| Platform-admin login per username | 5 / 15 min |
+| Platform-admin login per IP | 10 / 15 min |
+| **Any authenticated write, per actor** | **300 / min** |
+
+The last one is applied by the mutation wrappers themselves, so every
+state-changing endpoint inherits it without a per-route opt-in. Authentication
+is not a licence to hammer: it bounds a compromised or scripted session without
+getting in the way of anyone working normally.
+
+The platform account also carries a **per-account lockout** on top of its
+buckets: 8 consecutive failures freeze it for 15 minutes, which a distributed
+attacker cannot dodge by rotating source addresses.
 
 A 429 carries `Retry-After`.
 
@@ -304,27 +384,18 @@ the database password.
 
 ## 16. OWASP Top 10 (2021) coverage
 
-| Risk | Position |
-|---|---|
-| **A01 Broken Access Control** | Server-side tenancy and roles on every call; 404 for foreign rows; 24 dedicated isolation tests |
-| **A02 Cryptographic Failures** | Argon2id, HMAC-SHA-256, `randomBytes`, constant-time comparison. No invented cryptography |
-| **A03 Injection** | Parameterized queries throughout; React escaping; CSP; CSV formula neutralization |
-| **A04 Insecure Design** | Immutable payment ledger, consent-based messaging, provider that cannot fake success, archive-not-delete |
-| **A05 Security Misconfiguration** | Full header set, no `x-powered-by`, env validated at startup, restrictive CORS |
-| **A06 Vulnerable Components** | Small dependency surface; `npm audit` reports 0 vulnerabilities. `overrides` in `package.json` pin `sharp`, `postcss` and `deepmerge-ts` to patched versions inside transitive trees |
-| **A07 Auth Failures** | Rate limits, single-use OTPs, session rotation, uniform error messages |
-| **A08 Integrity Failures** | Webhook signature verification, idempotency, amount reconciliation |
-| **A09 Logging Failures** | Audit log with redaction; secrets never logged |
-| **A10 SSRF** | No user-controlled outbound URL exists |
-
-### ASVS notes
-
-Aligned with ASVS 4.0 Level 1 across V2 (authentication), V3 (session),
-V4 (access control), V5 (validation), V7 (logging), V12 (files) and V13 (API).
-
-Not implemented, and honestly out of scope for a single-operator product at this
-stage: multi-factor authentication beyond the OTP flow, hardware-backed key
-storage, and formal cryptographic key rotation automation.
+| # | Risk | How it is addressed here |
+|---|---|---|
+| **A01** | Broken access control | Explicit permission matrix checked server-side on every route; row-level scoping on top of it (a teacher's queries carry their own membership id); tenant filter applied through `scope` helpers rather than by hand; 404 instead of 403 for foreign ids; the student portal takes no student id at all; `/admin` is a separate table, cookie and resolver. Asserted by `tests/security/rbac-enforcement.test.ts`, `tenant-isolation*.test.ts`, `portal.test.ts` and `tests/http/admin-http.test.ts`. |
+| **A02** | Cryptographic failures | Argon2id (OWASP baseline parameters) for passwords, admin passwords and OTP codes; opaque session tokens stored only as SHA-256; HMAC-signed file URLs; IPs hashed with a keyed secret before they reach the audit log; `__Host-` + `Secure` + `HttpOnly` cookies; HSTS in production. |
+| **A03** | Injection | Prisma parameterizes every query; no string-built SQL anywhere; malformed UUIDs are rejected before reaching the driver; React escapes on output and no `dangerouslySetInnerHTML` exists in the codebase; CSV export prefixes formula-triggering cells. |
+| **A04** | Insecure design | Immutable payment and payout ledgers with a separate adjustment table; subscription state gates writes but never deletion; overrides require a reason and are audited before they take effect; credentials are generated, never chosen by the creator, and shown once. |
+| **A05** | Security misconfiguration | Environment validated at boot with a fail-closed schema; CSP with a per-request nonce and `strict-dynamic`; user content served under `default-src 'none'; sandbox`; a full header set applied in middleware and asserted by `tests/http/headers-http.test.ts`. |
+| **A06** | Vulnerable components | Small dependency surface, versions pinned, `overrides` used to hold transitive packages at patched releases. |
+| **A07** | Authentication failures | Rate limits per identifier and per IP, tighter buckets plus a lockout for the platform account; uniform responses and constant-ish timing for unknown accounts; session rotation on login; temporary credentials expire and force a change; re-issuing a password revokes every live session. |
+| **A08** | Software and data integrity | Subscriptions move only on a signature-verified webhook or an audited admin action; webhook events are idempotent by external id; `subscription_payments` is unique on `(provider, transaction id)`; amounts are checked against the stored intent, never taken from the event. |
+| **A09** | Logging and monitoring | Every sensitive operation writes an audit row with actor, target, outcome, hashed IP and user agent; admin actions additionally carry `actorAdminId` and `isOverride`; a key-name filter redacts anything password-, token- or code-shaped, asserted by `tests/security/logging.test.ts`. |
+| **A10** | SSRF | The server makes no outbound request to a user-supplied URL. The only egress targets are fixed provider hosts read from environment variables. |
 
 ---
 
@@ -351,24 +422,39 @@ storage, and formal cryptographic key rotation automation.
 
 ## 18. Test coverage of these claims
 
+**388 automated tests across 29 files**, plus a Playwright browser suite. Every
+claim above is backed by at least one of them.
+
 | Area | File | Tests |
 |---|---|---|
-| Tenant isolation | `tests/security/tenant-isolation.test.ts` | 24 |
-| Injection, mass assignment, parameter pollution | `tests/security/injection.test.ts` | 28 |
+| Cross-tenant access — students, groups, lessons, payments | `tests/security/tenant-isolation.test.ts` | 24 |
+| Cross-tenant access — homework, grades, courses, staff, payroll, expenses | `tests/security/tenant-isolation-extended.test.ts` | 19 |
+| Server-side permission enforcement per role | `tests/security/rbac-enforcement.test.ts` | 16 |
+| Student portal self-scoping | `tests/security/portal.test.ts` | 12 |
 | File uploads, path traversal, signed URLs | `tests/security/uploads.test.ts` | 17 |
 | Webhook signatures and link tokens | `tests/security/webhooks.test.ts` | 15 |
 | OTP issuance, verification and throttling | `tests/security/otp.test.ts` | 12 |
+| Injection, mass assignment, parameter pollution | `tests/security/injection.test.ts` | 8 |
 | Reminder consent and rate limiting | `tests/security/reminders.test.ts` | 8 |
 | Log redaction | `tests/security/logging.test.ts` | 3 |
-| HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 33 |
+| Admin/centre boundary, role routing, impersonation audit | `tests/http/admin-http.test.ts` | 18 |
+| HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 23 |
 | Headers, CORS, roles, bundle secrets | `tests/http/headers-http.test.ts` | 17 |
 | Cross-tenant file access and uploads | `tests/http/files-http.test.ts` | 9 |
 | Report export and query validation | `tests/http/reports-http.test.ts` | 5 |
-| **Security-focused total** | | **171** |
+| Permission matrix and override filtering | `tests/unit/rbac.test.ts` | 15 |
+| Subscription state machine | `tests/unit/subscription.test.ts` | 12 |
+| Username and password generation | `tests/unit/credentials.test.ts` | 10 |
+| **Security-focused total** | | **243** |
 
-Supporting layers: 50 unit tests (money, phone, CSV, dates, timezones,
-translation parity), 29 integration tests (students, lessons, attendance, the
-payment ledger) and 14 Playwright end-to-end tests. **250 automated tests in
-total**, plus the browser suite.
+Supporting layers: money, dates, i18n, CSV and phone units (31), and integration
+tests for students, lessons, attendance, the payment ledger, staff provisioning
+and the subscription lifecycle (63).
 
-Run them with `npm run test:security` (domain) or `npm test` (everything).
+The browser suite (`npm run e2e`) covers the landing page, the login flow for
+all four centre roles, the admin boundary, per-role page access and a
+cross-tenant URL attempt in a real browser — which is also the only place the
+`__Host-` cookie rules are genuinely enforced.
+
+Run them with `npm run test:security` (domain), `npm test` (everything) or
+`npm run e2e` (browser).

@@ -12,15 +12,15 @@ export const GET = orgRoute<Params>(async (ctx, _request, { id }) => {
     studentAttendanceStats(ctx, id),
   ]);
   return json({ student, balance, attendance });
-});
+}, 'students.read');
 
 export const PUT = orgMutation<Params>(async (ctx, request, { id }) => {
   const body = await readJson(request, studentInputSchema);
   return json(await updateStudent(ctx, id, body));
-});
+}, 'students.update');
 
 /** Archive rather than destroy - attendance and payment history must survive. */
 export const DELETE = orgMutation<Params>(async (ctx, _request, { id }) => {
   await archiveStudent(ctx, id);
   return noContent();
-});
+}, 'students.delete');

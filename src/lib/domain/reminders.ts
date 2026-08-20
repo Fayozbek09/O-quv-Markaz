@@ -49,7 +49,7 @@ export async function buildReminder(
 
   const parent = student.parents[0];
   const studentName = [student.firstName, student.lastName].filter(Boolean).join(' ');
-  const teacherName = [ctx.user.firstName, ctx.user.lastName].filter(Boolean).join(' ');
+  const teacherName = [ctx.user?.firstName, ctx.user?.lastName].filter(Boolean).join(' ');
   const now = new Date();
 
   if (input.template === 'DEBT') {
@@ -139,7 +139,7 @@ export async function sendReminder(ctx: OrgContext, input: ReminderRequest) {
         locale: input.locale === 'ru' ? 'RU' : input.locale === 'en' ? 'EN' : 'UZ',
         body: built.body,
         status: 'QUEUED',
-        sentByUserId: ctx.user.userId,
+        sentByUserId: ctx.actorUserId,
         dedupeKey: built.dedupeKey,
       },
     });
@@ -155,7 +155,7 @@ export async function sendReminder(ctx: OrgContext, input: ReminderRequest) {
     });
     await audit({
       organizationId: ctx.orgId,
-      actorUserId: ctx.user.userId,
+      actorUserId: ctx.actorUserId,
       action: 'telegram.reminder.queued',
       entityType: 'student',
       entityId: input.studentId,
@@ -176,7 +176,7 @@ export async function sendReminder(ctx: OrgContext, input: ReminderRequest) {
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'telegram.reminder.send',
     entityType: 'student',
     entityId: input.studentId,

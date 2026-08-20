@@ -55,6 +55,33 @@ Tables *not* scoped to a workspace, and why:
 | `lessons` | A scheduled occurrence | Unique `(groupId, startsAt)` — makes generation idempotent |
 | `attendance` | One mark per student per lesson | Unique `(lessonId, studentId)` |
 
+### Curriculum and assessment
+
+| Table | Holds |
+|---|---|
+| `courses` | The centre's course catalogue: name, optional catalogue key, default fee, duration, colour |
+| `homework` | One assignment per group, with a deadline, an optional maximum score and a status |
+| `homework_attachments` | Join table between an assignment and the files attached to it |
+| `homework_submissions` | One row per student per assignment, created when the assignment is published; carries status, score and feedback |
+| `grades` | One recorded mark. `scheme` decides how `valueNumeric` / `valueLetter` are read, so a centre can move to another grading system without migrating old rows |
+
+### Payroll and costs
+
+| Table | Holds |
+|---|---|
+| `salary_payments` | Immutable payout rows. The *amount owed* is computed on demand from the member's salary model, the lessons delivered and the revenue collected; paying never rewrites that calculation |
+| `expenses` | Non-payroll costs, so the net figure on the finance page is a real one |
+
+### Platform administration and billing
+
+| Table | Holds |
+|---|---|
+| `platform_admins` | Platform staff. Deliberately separate from `users`: no column on a centre account can be flipped to gain platform rights |
+| `admin_sessions` | Admin sessions, with `impersonatingOrgId` set while an override is active |
+| `platform_settings` | Key/value configuration the platform admin edits at runtime — monthly price, trial length, grace period |
+| `subscriptions` | One per centre. Trial and paid-term dates, grace window, the price snapshotted at signup, and the reminder milestones already sent |
+| `subscription_payments` | Settled or attempted subscription charges, unique on `(provider, providerTransactionId)` so replaying a webhook cannot buy a second month |
+
 ### Money
 
 | Table | Purpose | Notes |
@@ -225,3 +252,47 @@ Two functions are provided for a scheduled job:
 
 Neither is on a timer by default; wire them to whatever scheduler the deployment
 has (a cron container, a platform scheduled function, or `pg_cron`).
+
+
+---
+
+## Subscription lifecycle in the schema
+
+`subscriptions.status` walks one ladder:
+
+```
+TRIAL ──(trialEndsAt passes)──► GRACE_PERIOD ──(graceEndsAt passes)──► SUSPENDED
+ACTIVE ──(subscriptionEndsAt passes)──► PAYMENT_DUE ──► GRACE_PERIOD ──► SUSPENDED
+                          ▲                                                │
+                          └──────── verified payment ───────────────────────┘
+```
+
+Two properties matter:
+
+- **The transition is evaluated on read**, in `currentSubscription()`, as well as
+  by the nightly job. A centre whose term lapsed overnight is in the correct
+  state on its very next request even if no cron ran.
+- **SUSPENDED deletes nothing.** No `ON DELETE`, no archival job, no data
+  expiry is tied to subscription status anywhere in the schema. The status gates
+  new writes at the API layer and nothing else.
+
+`amountMinor` is stored on the subscription rather than read from
+`platform_settings` at charge time, so changing the platform price does not
+silently re-price an existing customer.
+
+---
+
+## Enum values kept for backwards compatibility
+
+Several enums carry values from the earlier single-tutor product. They are never
+written by new code, but they are not removed either, because dropping a value
+from a Postgres enum requires rewriting every row that uses it:
+
+| Enum | Legacy values | Read as |
+|---|---|---|
+| `OrgRole` | `ASSISTANT` | `RECEPTIONIST` |
+| `SubscriptionPlan` | `FREE`, `PRO`, `ANNUAL` | Any plan resolves to the single `STANDARD` behaviour |
+| `SubscriptionStatus` | `TRIALING`, `PAST_DUE`, `CANCELED` | `TRIAL`, `PAYMENT_DUE`, `CANCELLED` |
+
+The mapping lives in `src/lib/rbac.ts` and `src/lib/domain/subscription.ts`, and
+is asserted by unit tests.

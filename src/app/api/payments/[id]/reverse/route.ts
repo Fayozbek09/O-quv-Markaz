@@ -12,4 +12,4 @@ export const POST = orgMutation<Params>(async (ctx, request, { id }) => {
   const body = await readJson(request, paymentReverseSchema);
   await reversePayment(ctx, id, body.reason);
   return json({ ok: true });
-}, 'ADMIN');
+}, 'payments.adjust');

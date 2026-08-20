@@ -1,13 +1,13 @@
 {
-  "name": "ustozly",
+  "name": "oquv-markaz",
   "version": "0.1.0",
   "private": true,
-  "description": "Ustozly \u2014 repetitorning raqamli ish daftari",
+  "description": "O'quv Markaz \u2014 multi-tenant education-centre management platform",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:up": "docker start ustozly-pg || docker run -d --name ustozly-pg -e POSTGRES_USER=ustozly -e POSTGRES_PASSWORD=ustozly_dev_pw -e POSTGRES_DB=ustozly -p 5433:5432 postgres:17-alpine",
     "db:migrate": "prisma migrate dev",
@@ -19,7 +19,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:security": "vitest run tests/security",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "admin:create": "tsx scripts/create-admin.ts",
+    "subscriptions:remind": "tsx scripts/subscription-cron.ts",
+    "lint:fix": "eslint . --fix"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -44,6 +47,7 @@
     "prisma@7.9.1": true
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
@@ -51,11 +55,14 @@
     "@types/react-dom": "^19.2.4",
     "dotenv": "^17.4.2",
     "dotenv-cli": "^11.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.23",
     "postcss": "^8.5.26",
     "prisma": "^7.9.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.11"
   },
   "overrides": {

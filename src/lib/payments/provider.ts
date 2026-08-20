@@ -1,16 +1,23 @@
 import type { SubscriptionPlan } from '@/generated/prisma/enums';
 
 /**
- * Plan catalogue. Prices are in minor units of the plan currency (UZS has no
- * subunit, so 25000 = 25 000 so'm).
+ * Plan catalogue.
+ *
+ * There is exactly one live plan: a flat monthly price for the whole centre,
+ * with no student, teacher or group ceiling. Its price is NOT taken from here
+ * — it is read from platform settings (lib/domain/settings.ts) so the platform
+ * admin can change it without a deploy. The numbers below are only the shape,
+ * and the legacy rows exist so subscriptions created by the single-tutor
+ * product still resolve.
  */
 export const PLANS: Record<
   SubscriptionPlan,
-  { priceMinor: bigint; currency: string; periodDays: number | null; studentLimit: number | null }
+  { periodDays: number | null; studentLimit: number | null }
 > = {
-  FREE: { priceMinor: 0n, currency: 'UZS', periodDays: null, studentLimit: 10 },
-  PRO: { priceMinor: 25_000n, currency: 'UZS', periodDays: 30, studentLimit: null },
-  ANNUAL: { priceMinor: 199_000n, currency: 'UZS', periodDays: 365, studentLimit: null },
+  STANDARD: { periodDays: 30, studentLimit: null },
+  FREE: { periodDays: null, studentLimit: null },
+  PRO: { periodDays: 30, studentLimit: null },
+  ANNUAL: { periodDays: 365, studentLimit: null },
 };
 
 export type CheckoutSession = {

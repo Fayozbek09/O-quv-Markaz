@@ -6,6 +6,8 @@ import { clientIp } from '../auth/session';
 export type AuditInput = {
   organizationId?: string | null;
   actorUserId?: string | null;
+  actorAdminId?: string | null;
+  isOverride?: boolean;
   action: string;
   entityType?: string | null;
   entityId?: string | null;
@@ -48,6 +50,8 @@ export async function audit(input: AuditInput): Promise<void> {
     data: {
       organizationId: input.organizationId ?? null,
       actorUserId: input.actorUserId ?? null,
+      actorAdminId: input.actorAdminId ?? null,
+      isOverride: input.isOverride ?? false,
       action: input.action,
       entityType: input.entityType ?? null,
       entityId: input.entityId ?? null,

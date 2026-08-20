@@ -41,7 +41,7 @@ test.describe('landing page', () => {
 
 test.describe('authentication screens', () => {
   test('an unauthenticated visitor is sent to the login page', async ({ page }) => {
-    await page.goto('/dashboard');
+    await page.goto('/center');
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -55,15 +55,15 @@ test.describe('authentication screens', () => {
       await page.keyboard.press('Tab');
     }
 
-    await page.keyboard.type('ustoz@ustozly.uz');
-    await expect(page.getByLabel(/Telefon|Телефон|Phone/).first()).toHaveValue('ustoz@ustozly.uz');
+    await page.keyboard.type('owner.karimova');
+    await expect(page.locator('input[name="identifier"]')).toHaveValue('owner.karimova');
   });
 
   test('wrong credentials produce a translated message, not a stack trace', async ({ page }) => {
     await page.goto('/login');
 
-    await page.getByLabel(/Telefon|Телефон|Phone/).first().fill('nobody@example.test');
-    await page.getByLabel(/Parol|Пароль|Password/).first().fill('wrong-password-123');
+    await page.locator('input[name="identifier"]').fill('nobody@example.test');
+    await page.locator('input[name="password"]').fill('wrong-password-123');
     await page.getByRole('button', { name: /Kirish|Войти|Log in/ }).click();
 
     const alert = page.getByRole('alert');
@@ -82,7 +82,7 @@ test.describe('authentication screens', () => {
   });
 });
 
-test.describe('signed-in session', () => {
+test.describe('signed-in centre owner', () => {
   /**
    * This is the test that catches a cookie a browser refuses to store. The HTTP
    * suite uses its own cookie jar, which accepts anything; only a real browser
@@ -90,18 +90,17 @@ test.describe('signed-in session', () => {
    */
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');
-    await page.locator('input[name="identifier"]').fill('ustoz@ustozly.uz');
-    await page.locator('input[name="password"]').fill('Ustozly2026!');
+    await page.locator('input[name="identifier"]').fill('owner.karimova');
+    await page.locator('input[name="password"]').fill('Demo-Markaz-2026!');
     await page.getByRole('button', { name: /Kirish|Войти|Log in/ }).click();
-    await page.waitForURL('**/dashboard');
+    await page.waitForURL('**/center');
   });
 
-  test('a browser stores the session and lands on the dashboard', async ({ page }) => {
-    await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole('heading', { name: /Salom|Здравствуйте|Hello/ })).toBeVisible();
+  test('a browser stores the session and lands on the centre dashboard', async ({ page }) => {
+    await expect(page).toHaveURL(/\/center/);
 
     const cookies = await page.context().cookies();
-    const session = cookies.find((c) => c.name.includes('ustozly_session'));
+    const session = cookies.find((c) => c.name.includes('omarkaz_session'));
     expect(session, 'the browser must actually keep the session cookie').toBeDefined();
     expect(session?.httpOnly).toBe(true);
     expect(session?.secure).toBe(true);
@@ -109,26 +108,37 @@ test.describe('signed-in session', () => {
 
   test('the session survives a reload and a navigation', async ({ page }) => {
     await page.reload();
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/center/);
 
     await page.getByRole('link', { name: /O'quvchilar|Ученики|Students/ }).first().click();
     await expect(page).toHaveURL(/\/students/);
-    await expect(page.getByRole('heading', { name: /O'quvchilar|Ученики|Students/ }).first()).toBeVisible();
   });
 
-  test('every main screen renders for a signed-in teacher', async ({ page }) => {
-    for (const path of ['/students', '/groups', '/calendar', '/attendance', '/payments', '/reports', '/settings/profile']) {
+  test('every centre screen renders', async ({ page }) => {
+    const paths = [
+      '/center', '/students', '/groups', '/courses', '/calendar', '/attendance',
+      '/homework', '/grades', '/teachers', '/payments', '/salaries', '/expenses',
+      '/finance', '/reports', '/billing', '/settings/profile',
+    ];
+    for (const path of paths) {
       const response = await page.goto(path);
       expect(response?.status(), path).toBe(200);
       await expect(page.locator('main')).toBeVisible();
     }
   });
 
+  test('the trial countdown is visible', async ({ page }) => {
+    await page.goto('/billing');
+    await expect(
+      page.getByText(/Sinov muddati|Пробный период|Trial/).first(),
+    ).toBeVisible();
+  });
+
   test('logging out clears the session', async ({ page }) => {
-    await page.getByRole('button', { name: /Test|Aziza|A/ }).last().click();
+    await page.getByRole('button', { name: /Aziza|A/ }).last().click();
     await page.getByRole('menuitem', { name: /Chiqish|Выйти|Log out/ }).click();
     await page.waitForURL('**/login');
-    await page.goto('/dashboard');
+    await page.goto('/center');
     await expect(page).toHaveURL(/\/login/);
   });
 });

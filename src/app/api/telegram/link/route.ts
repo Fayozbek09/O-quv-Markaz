@@ -12,7 +12,7 @@ export const GET = orgRoute(async (ctx) => {
     select: { id: true, targetType: true, username: true, displayName: true, consentAt: true },
   });
   return json({ configured: telegramConfigured, accounts });
-});
+}, 'center.settings');
 
 /**
  * Issues a one-time link code. Identity is bound when the code is redeemed
@@ -27,12 +27,12 @@ export const POST = orgMutation(async (ctx, request) => {
     organizationId: ctx.orgId,
     targetType: body.targetType,
     studentId: body.studentId ?? null,
-    createdByUserId: ctx.user.userId,
+    createdByUserId: ctx.actorUserId,
   });
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'telegram.link.create',
     meta: { targetType: body.targetType },
   });
@@ -43,4 +43,4 @@ export const POST = orgMutation(async (ctx, request) => {
     ttlMinutes: Math.round(LINK_TTL_MS / 60_000),
     configured: telegramConfigured,
   }, { status: 201 });
-});
+}, 'center.settings');

@@ -14,4 +14,4 @@ export const GET = orgRoute(async (ctx, request) => {
     orgBalance(ctx),
   ]);
   return json({ ...debtors, totals });
-});
+}, 'payments.read');

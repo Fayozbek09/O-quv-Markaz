@@ -34,13 +34,13 @@ export async function markAttendance(
           status: entry.status,
           minutesLate: entry.status === 'LATE' ? (entry.minutesLate ?? null) : null,
           note: entry.note,
-          markedByUserId: ctx.user.userId,
+          markedByUserId: ctx.actorUserId,
         },
         update: {
           status: entry.status,
           minutesLate: entry.status === 'LATE' ? (entry.minutesLate ?? null) : null,
           note: entry.note,
-          markedByUserId: ctx.user.userId,
+          markedByUserId: ctx.actorUserId,
         },
       }),
     ),
@@ -56,7 +56,7 @@ export async function markAttendance(
 
   await audit({
     organizationId: ctx.orgId,
-    actorUserId: ctx.user.userId,
+    actorUserId: ctx.actorUserId,
     action: 'attendance.mark',
     entityType: 'lesson',
     entityId: input.lessonId,

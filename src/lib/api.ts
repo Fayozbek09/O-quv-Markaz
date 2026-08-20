@@ -3,8 +3,12 @@ import { ZodError, type ZodType } from 'zod';
 import { AppError, BadRequest, PayloadTooLarge } from './errors';
 import { assertCsrf } from './security/csrf';
 import { requireOrg, requireUser, type OrgContext } from './tenant';
+import { requireAdmin, type AdminContext } from './admin';
+import { assertSubscriptionWritable } from './domain/plan';
+import { enforce } from './security/rate-limit';
+import type { SessionUser } from './auth/session';
+import type { Permission } from './rbac';
 import { isProd } from './env';
-import type { OrgRole } from '@/generated/prisma/enums';
 
 /** Largest JSON body any route will parse. */
 const MAX_BODY_BYTES = 256 * 1024;
@@ -102,14 +106,19 @@ export function readQuery<T>(request: Request, schema: ZodType<T>): T {
 
 type Handler<T> = (args: T) => Promise<NextResponse> | NextResponse;
 
-/** Read-only route: authenticated + tenant-scoped, no CSRF token needed. */
+/**
+ * Read-only route: authenticated + tenant-scoped + permission checked.
+ *
+ * The permission is named at the route, not inferred from a role rank, so
+ * adding a role never silently widens an existing endpoint.
+ */
 export function orgRoute<P = unknown>(
   handler: (ctx: OrgContext, request: Request, params: P) => Promise<NextResponse>,
-  minRole: OrgRole = 'ASSISTANT',
+  permission: Permission,
 ) {
   return async (request: Request, context: { params: Promise<P> }) => {
     try {
-      const ctx = await requireOrg(minRole);
+      const ctx = await requireOrg(permission);
       const params = (await context?.params) ?? ({} as P);
       return await handler(ctx, request, params);
     } catch (err) {
@@ -118,17 +127,70 @@ export function orgRoute<P = unknown>(
   };
 }
 
-/** Mutating route: authenticated + tenant-scoped + CSRF verified. */
+/** Mutating route: authenticated + tenant-scoped + permission + CSRF verified. */
 export function orgMutation<P = unknown>(
   handler: (ctx: OrgContext, request: Request, params: P) => Promise<NextResponse>,
-  minRole: OrgRole = 'TEACHER',
+  permission: Permission,
 ) {
   return async (request: Request, context: { params: Promise<P> }) => {
     try {
-      const ctx = await requireOrg(minRole);
-      await assertCsrf(ctx.user.csrfSecret);
+      const ctx = await requireOrg(permission);
+      await assertCsrf(ctx.csrfSecret);
+      // A per-actor write ceiling. Authentication is not a licence to hammer:
+      // this bounds a compromised or scripted session without getting in the
+      // way of anyone working normally.
+      await enforce('api:write:user', ctx.actorUserId ?? ctx.admin?.adminId ?? ctx.orgId);
+      // A lapsed subscription holds new writes; it never hides or deletes data.
+      await assertSubscriptionWritable(ctx, permission);
       const params = (await context?.params) ?? ({} as P);
       return await handler(ctx, request, params);
+    } catch (err) {
+      return toErrorResponse(err);
+    }
+  };
+}
+
+/** Read-only platform-administration route. Never reachable with a centre session. */
+export function adminRoute<P = unknown>(
+  handler: (admin: AdminContext, request: Request, params: P) => Promise<NextResponse>,
+) {
+  return async (request: Request, context: { params: Promise<P> }) => {
+    try {
+      const admin = await requireAdmin();
+      const params = (await context?.params) ?? ({} as P);
+      return await handler(admin, request, params);
+    } catch (err) {
+      return toErrorResponse(err);
+    }
+  };
+}
+
+/** Mutating platform-administration route: admin session + CSRF. */
+export function adminMutation<P = unknown>(
+  handler: (admin: AdminContext, request: Request, params: P) => Promise<NextResponse>,
+) {
+  return async (request: Request, context: { params: Promise<P> }) => {
+    try {
+      const admin = await requireAdmin();
+      await assertCsrf(admin.csrfSecret);
+      await enforce('api:write:user', admin.adminId);
+      const params = (await context?.params) ?? ({} as P);
+      return await handler(admin, request, params);
+    } catch (err) {
+      return toErrorResponse(err);
+    }
+  };
+}
+
+/** Authenticated as any signed-in user, including a student. CSRF verified. */
+export function sessionMutation(
+  handler: (user: SessionUser, request: Request) => Promise<NextResponse>,
+) {
+  return async (request: Request) => {
+    try {
+      const user = await requireUser();
+      await assertCsrf(user.csrfSecret);
+      return await handler(user, request);
     } catch (err) {
       return toErrorResponse(err);
     }
@@ -146,6 +208,7 @@ export function userMutation(
     try {
       const user = await requireUser();
       await assertCsrf(user.csrfSecret);
+      await enforce('api:write:user', user.userId);
       return await handler(user, request);
     } catch (err) {
       return toErrorResponse(err);

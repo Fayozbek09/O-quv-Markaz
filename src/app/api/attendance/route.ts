@@ -6,4 +6,4 @@ export const POST = orgMutation(async (ctx, request) => {
   const body = await readJson(request, attendanceMarkSchema);
   await markAttendance(ctx, body);
   return json({ ok: true });
-});
+}, 'attendance.write');

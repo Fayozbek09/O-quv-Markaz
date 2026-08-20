@@ -189,3 +189,107 @@ If any of these does not hold, the corresponding controls degrade — see
 | Application-level tenancy only | Simpler to reason about and fully tested | Enable Postgres RLS as a second layer (policies in DATABASE.md) |
 | Fixed-window rate limiting | Adequate against the actual threats | Move to a token bucket if boundary bursts matter |
 | Audit log in the same database | One operator, one host | Ship logs to append-only external storage |
+
+
+---
+
+## 8. Threats introduced by the platform roles
+
+The move from a single-tutor workspace to a multi-role centre adds actors who
+are *inside* the tenant. These are the threats that come with them.
+
+### A teacher reading what they should not
+
+**Threat.** A teacher opens another teacher's group, another teacher's salary or
+the centre's payment ledger.
+
+**Mitigations.**
+- `TEACHER` does not hold `payments.read`, `payments.create`, `expenses.read` or
+  `salary.write` — asserted in `tests/unit/rbac.test.ts`.
+- `salary.read` is held, but the salaries endpoint branches on the role and
+  returns one line, the caller's own.
+- Group, homework and grade queries add `teacherId: ctx.memberId` to the *query*,
+  so another teacher's rows are never fetched, not merely hidden.
+
+**Residual.** A teacher assigned to a group can see every student in it,
+including their contact details. That is the job.
+
+### A receptionist escalating through a permission override
+
+**Threat.** An override is written that grants a receptionist `center.delete` or
+`salary.write`.
+
+**Mitigation.** `permissionsFor()` filters overrides through `GRANTABLE`, a
+per-role allow-list. A permission outside it is ignored even if it is present in
+the database column, so a stray SQL edit or a compromised settings form cannot
+mint an owner.
+
+### A student reaching another student
+
+**Threat.** A student changes an id in a request to read someone else's grades,
+attendance or balance.
+
+**Mitigation.** There is no id to change. Every portal function derives the
+student from `session.userId`; the only id a student ever sends is a homework id
+when handing work in, and that is matched against their own submission rows.
+`tests/security/portal.test.ts` asserts this for attendance, grades, payments,
+homework and submission.
+
+**Residual.** A student who shares their password shares their own record. The
+forced first-login change and the 14-day expiry on temporary credentials narrow
+the window in which an unused issued password is useful.
+
+### A centre user reaching the platform area
+
+**Threat.** A signed-in owner or teacher navigates to `/admin` or calls
+`/api/admin/*`.
+
+**Mitigations.**
+- Platform staff live in a separate table; there is no column on `users` that
+  grants platform access.
+- The admin resolver reads a different cookie and never falls back to the centre
+  session.
+- The attempt is refused with 403 and recorded as `admin.access.denied`.
+- Asserted over real HTTP in `tests/http/admin-http.test.ts`.
+
+### A platform admin acting inside a centre
+
+**Threat.** Support access is used to read or change centre data unaccountably.
+
+**Mitigations.** The capability is deliberate and cannot be removed without
+removing support, so the control is accountability rather than prevention:
+- impersonation requires a written reason, audited *before* the session flips;
+- a red banner names the centre on every page for the duration;
+- every write carries `actorAdminId` and `isOverride = true`;
+- the centre's own owner sees those entries in their activity feed, flagged.
+
+**Residual.** A platform admin with database access can edit the audit log
+itself. Mitigated operationally — restricted database credentials, off-host log
+shipping — not in the application.
+
+### Subscription state abused as a denial of service
+
+**Threat.** A billing bug, or a hostile actor with admin access, suspends a
+centre and takes its data with it.
+
+**Mitigations.**
+- Suspension is a status field; no deletion, archival or expiry job is tied to
+  it anywhere in the schema.
+- `center.billing`, `center.settings` and `reports.export` stay reachable while
+  suspended, so an owner can always pay and always export.
+- Suspension and closure both require a reason and are audited.
+- Closing a centre is a soft delete: financial and academic records are retained
+  for audit, and the action says so in the confirmation dialog.
+
+### A forged payment activating a subscription
+
+**Threat.** A crafted request marks a centre as paid.
+
+**Mitigations.**
+- No endpoint accepts a payment outcome from a browser. `applySuccessfulPayment`
+  is called only from the verified-webhook path and from the platform admin's
+  offline-payment action.
+- The webhook checks the provider signature, the event id (idempotency) and the
+  amount against the stored intent before anything moves.
+- `subscription_payments` is unique on `(provider, providerTransactionId)`, so
+  replaying a captured event cannot buy a second month.

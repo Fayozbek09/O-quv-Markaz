@@ -11,4 +11,4 @@ const schema = z
 export const GET = orgRoute(async (ctx, request) => {
   const query = readQuery(request, schema);
   return json(await buildReminder(ctx, query));
-});
+}, 'notifications.send');

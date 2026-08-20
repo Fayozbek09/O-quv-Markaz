@@ -4,6 +4,24 @@ All notable changes to this project are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Scheduling conflict detection.** A lesson is refused when it overlaps an
+  existing one for the same group, the same teacher or the same room. The check
+  is a true interval overlap (`newStart < existingEnd && newEnd > existingStart`)
+  rather than an equal-start comparison, so an 18:00-19:30 lesson and a
+  19:00-20:30 lesson in room 204 now clash as they should. A cancelled lesson
+  releases its slot, back-to-back lessons are allowed, and a lesson never
+  conflicts with itself when edited. The error names which of the three clashed,
+  in all three languages.
+- **Lesson change notifications.** Cancelling a lesson, or moving it to another
+  time, writes an in-app notification to every active student in the group.
+  Re-cancelling an already cancelled lesson does not notify twice, editing a
+  lesson without moving it stays quiet, and a student who muted the type gets
+  nothing.
+
 ## [0.1.0] — 2026-08-20
 
 First working version. Everything below is implemented and covered by tests.
@@ -113,3 +131,86 @@ test:
 - Rate limiting uses fixed windows, so a burst at a window boundary can briefly
   exceed the nominal rate.
 - The `manual` payment provider cannot complete a purchase by design.
+
+## O'quv Markaz — education-centre platform
+
+The single-tutor workbook became a multi-tenant platform for education centres.
+Everything that already worked was kept; this records what changed around it.
+
+### Roles and authorization
+
+- Added `RECEPTIONIST` and `STUDENT` roles alongside `OWNER`, `ADMIN` and
+  `TEACHER`. The legacy `ASSISTANT` value is retained and reads as a
+  receptionist.
+- **Replaced rank-based authorization with an explicit permission matrix**
+  (`src/lib/rbac.ts`). `orgRoute` / `orgMutation` now take a permission string
+  instead of a minimum role, so a route that does not say what it needs fails to
+  compile. The roles genuinely cross — a receptionist takes money but never
+  grades, a teacher grades but never takes money — which a single rank could not
+  express.
+- Per-member permission overrides, filtered through a per-role `GRANTABLE`
+  allow-list so an override can never mint an owner.
+- Row-level scoping on top of permissions: a teacher's group, homework, grade
+  and salary queries are filtered by their membership id in the query itself.
+
+### Platform administration
+
+- New `/admin` area with its own table (`platform_admins`), its own cookie, its
+  own rate-limit buckets, a per-account lockout and a 16-character password
+  floor. A centre session can never be read as an admin session.
+- Centre lifecycle: create (with generated owner credentials), inspect, edit,
+  suspend, reactivate and soft-delete. Suspension revokes live sessions; nothing
+  is destroyed.
+- Explicit, audited "view as centre" override with a mandatory reason, a
+  persistent red banner and `actorAdminId` / `isOverride` on every resulting
+  audit row.
+- Platform dashboard, audit browser and runtime pricing configuration.
+- `npm run admin:create` creates or rotates the administrator, printing the
+  credentials once and storing only the Argon2id hash.
+
+### Accounts and login
+
+- Added globally unique usernames. One login page resolves username, e-mail or
+  phone, decides the role server-side and returns the landing route; there is no
+  `?role=` and no client-side switching.
+- Centres provision teachers, receptionists and student portal accounts with
+  generated usernames and cryptographically random temporary passwords, shown
+  exactly once. Collisions are resolved with readable suffixes and the creator is
+  told which handle was actually issued.
+- Forced password change at first sign-in, and temporary credentials expire after
+  14 days if unused.
+
+### New domains
+
+- **Courses** with a built-in catalogue and per-centre additions.
+- **Homework** with per-group assignments, deadlines, attachments, per-student
+  submission rows and scoring.
+- **Grades** with 0–100, 5-point and letter schemes stored per mark.
+- **Payroll** with fixed, per-lesson, percentage and mixed salary models,
+  computed server-side and paid out as immutable rows.
+- **Expenses** and a finance page with monthly revenue, costs, net and CSV
+  export.
+- **Student portal** at `/student`, scoped entirely from the session's own user
+  id — there is no student id parameter anywhere in it.
+
+### Subscription
+
+- 30-day free trial with **no student, teacher or group limits**, then a flat
+  monthly price for the whole centre (300 000 UZS by default).
+- Price, trial length and grace period live in `platform_settings` and are
+  edited at `/admin/pricing`; nothing hardcodes the number. Existing centres keep
+  the price snapshotted on their own subscription row.
+- Status ladder `TRIAL → PAYMENT_DUE → GRACE_PERIOD → SUSPENDED`, evaluated on
+  read as well as by a nightly job, so a missed cron never leaves a stale state.
+- **A lapsed subscription deletes nothing.** Writes are held; billing, settings
+  and export stay available.
+- Payments are applied only from a signature-verified webhook or an audited
+  platform-admin offline entry. `subscription_payments` is unique on
+  `(provider, providerTransactionId)`, so a replayed event cannot buy a second
+  month.
+- Removed the old 10-student free-plan ceiling entirely.
+
+### Removed
+
+- `src/app/(app)/settings/billing` — replaced by `/billing`, which reflects the
+  new model. `/dashboard` now forwards to the role's landing area.
