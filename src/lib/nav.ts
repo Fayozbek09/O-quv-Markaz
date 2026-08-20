@@ -5,7 +5,7 @@ import type { TKey } from './i18n';
 export type NavKey =
   | 'center' | 'reception' | 'teacher' | 'dashboard'
   | 'students' | 'groups' | 'courses' | 'calendar' | 'attendance'
-  | 'homework' | 'grades' | 'teachers' | 'salaries'
+  | 'homework' | 'grades' | 'teachers' | 'salaries' | 'announcements'
   | 'payments' | 'expenses' | 'finance' | 'reports' | 'billing';
 
 export type NavItem = {
@@ -38,6 +38,7 @@ export const NAV: readonly NavItem[] = [
   { key: 'homework', href: '/homework', labelKey: 'nav.homework', permission: 'homework.read' },
   { key: 'grades', href: '/grades', labelKey: 'nav.grades', permission: 'grades.read' },
   { key: 'teachers', href: '/teachers', labelKey: 'nav.teachers', permission: 'staff.read' },
+  { key: 'announcements', href: '/announcements', labelKey: 'nav.announcements', permission: 'notifications.send' },
   { key: 'payments', href: '/payments', labelKey: 'nav.payments', permission: 'payments.read' },
   { key: 'salaries', href: '/salaries', labelKey: 'nav.salaries', permission: 'salary.read' },
   { key: 'expenses', href: '/expenses', labelKey: 'nav.expenses', permission: 'expenses.read' },

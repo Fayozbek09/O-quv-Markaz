@@ -35,6 +35,7 @@ export const uz: Dictionary = {
     reports: 'Hisobotlar', settings: 'Sozlamalar', profile: 'Profil',
     workspace: 'Ish maydoni', notifications: 'Bildirishnomalar', security: 'Xavfsizlik',
  logout: 'Chiqish', menu: 'Menyu',
+    announcements: "E'lonlar",
   },
   landing: {
     heroTitle: "O'quv markazingizni bir joydan boshqaring — o'quvchi, dars va pul.",
@@ -290,6 +291,7 @@ export const uz: Dictionary = {
     studentRegistered: "Yangi o'quvchi qo'shildi", salaryPaid: "Maosh to'landi",
     subscriptionPaid: "Obuna to'lovi qabul qilindi",
     trialEnding: 'Sinov muddati tugayapti', subscriptionEnding: 'Obuna muddati tugayapti',
+    announcement: "E'lon",
     title: 'Bildirishnomalar', empty: "Bildirishnoma yo'q",
     markAllRead: "Hammasini o'qilgan deb belgilash", unread: "O'qilmagan",
     lessonUpcoming: 'Yaqinlashayotgan dars', attendanceMissed: 'Davomat belgilanmagan',
@@ -414,6 +416,17 @@ export const uz: Dictionary = {
     physics: 'Fizika', chemistry: 'Kimyo', biology: 'Biologiya', history: 'Tarix',
     programming: 'Dasturlash', robotics: 'Robototexnika', design: 'Dizayn', sat: 'SAT',
     preschool: 'Maktabgacha tayyorlov', music: 'Musiqa', art: 'Tasviriy sanʼat',
+  },
+  announcements: {
+    title: "E'lonlar", one: "E'lon", add: "E'lon qo'shish",
+    edit: "E'lonni tahrirlash", announcementTitle: 'Sarlavha', body: 'Matn',
+    audience: 'Kimga', EVERYONE: 'Hammaga', STAFF: 'Barcha xodimlarga',
+    TEACHERS: "O'qituvchilarga", STUDENTS: "O'quvchilarga", GROUP: 'Bitta guruhga',
+    group: 'Guruh', groupRequired: 'Guruhni tanlang.',
+    expiresAt: 'Shu sanagacha ko\'rsatilsin', pinned: 'Yuqoriga qadash', pin: 'Qadalgan',
+    posted: "E'lon joylandi", deleted: "E'lon olib tashlandi",
+    withdraw: 'Olib tashlash', empty: "E'lonlar yo'q", expired: 'Muddati tugagan',
+    confirmDelete: "E'lon olib tashlansinmi?",
   },
   homework: {
     title: 'Uyga vazifa', add: 'Vazifa berish', edit: 'Vazifani tahrirlash',

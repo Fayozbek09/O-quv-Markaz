@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/i18n';
 import { INTL_LOCALE } from '@/lib/i18n/config';
 import { Stat, StatGrid } from '@/components/ui/Stat';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
+import { announcementsForMember } from '@/lib/domain/announcements';
 import { Badge, Dot } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/Table';
 
@@ -27,7 +28,11 @@ export default async function TeacherPage() {
   const t = await getTranslator();
   const locale = await getLocale();
   const tz = await orgTimezone(ctx);
-  const [data, org] = await Promise.all([teacherOverview(ctx, tz), currentOrg(ctx)]);
+  const [data, org, announcements] = await Promise.all([
+    teacherOverview(ctx, tz),
+    currentOrg(ctx),
+    announcementsForMember(ctx, 5),
+  ]);
 
   const money = (v: bigint) => formatMoney(v, org.defaultCurrency, INTL_LOCALE[locale]);
   const time = (d: Date) => formatDate(d, locale, 'time', tz);
@@ -130,6 +135,25 @@ export default async function TeacherPage() {
             </ul>
           )}
         </Card>
+
+        {announcements.length > 0 && (
+          <Card className="lg:col-span-2">
+            <CardHeader title={t('announcements.title')} />
+            <ul className="divide-y divide-line">
+              {announcements.map((a) => (
+                <li key={a.id} className="flex flex-col gap-1 px-4 py-3 sm:px-5">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-ink">{a.title}</span>
+                    {a.pinned && <Badge tone="brand">{t('announcements.pin')}</Badge>}
+                    {a.group && <Badge tone="neutral">{a.group.name}</Badge>}
+                  </span>
+                  {/* Written by staff; rendered as text, never as markup. */}
+                  <span className="whitespace-pre-wrap text-[13px] text-ink-soft">{a.body}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
 
         <Card className="lg:col-span-2">
           <CardHeader title={t('teacher.myGroups')} />

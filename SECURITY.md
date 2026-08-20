@@ -422,38 +422,41 @@ the database password.
 
 ## 18. Test coverage of these claims
 
-**388 automated tests across 29 files**, plus a Playwright browser suite. Every
-claim above is backed by at least one of them.
+**437 automated tests across 31 files**, plus 34 Playwright browser tests. Every
+claim above is backed by at least one of them. The counts below are the numbers
+the runner reports, not estimates.
 
 | Area | File | Tests |
 |---|---|---|
+| Injection, mass assignment, parameter pollution | `tests/security/injection.test.ts` | 28 |
 | Cross-tenant access — students, groups, lessons, payments | `tests/security/tenant-isolation.test.ts` | 24 |
+| File uploads, magic bytes, path traversal, signed URLs | `tests/security/uploads.test.ts` | 25 |
 | Cross-tenant access — homework, grades, courses, staff, payroll, expenses | `tests/security/tenant-isolation-extended.test.ts` | 19 |
-| Server-side permission enforcement per role | `tests/security/rbac-enforcement.test.ts` | 16 |
-| Student portal self-scoping | `tests/security/portal.test.ts` | 12 |
-| File uploads, path traversal, signed URLs | `tests/security/uploads.test.ts` | 17 |
+| Server-side permission enforcement per role | `tests/security/rbac-enforcement.test.ts` | 19 |
 | Webhook signatures and link tokens | `tests/security/webhooks.test.ts` | 15 |
+| Student portal self-scoping | `tests/security/portal.test.ts` | 12 |
 | OTP issuance, verification and throttling | `tests/security/otp.test.ts` | 12 |
-| Injection, mass assignment, parameter pollution | `tests/security/injection.test.ts` | 8 |
 | Reminder consent and rate limiting | `tests/security/reminders.test.ts` | 8 |
 | Log redaction | `tests/security/logging.test.ts` | 3 |
+| HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 35 |
 | Admin/centre boundary, role routing, impersonation audit | `tests/http/admin-http.test.ts` | 18 |
-| HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 23 |
+| Cross-tenant file access, avatar and attachment uploads | `tests/http/files-http.test.ts` | 18 |
 | Headers, CORS, roles, bundle secrets | `tests/http/headers-http.test.ts` | 17 |
-| Cross-tenant file access and uploads | `tests/http/files-http.test.ts` | 9 |
 | Report export and query validation | `tests/http/reports-http.test.ts` | 5 |
 | Permission matrix and override filtering | `tests/unit/rbac.test.ts` | 15 |
 | Subscription state machine | `tests/unit/subscription.test.ts` | 12 |
 | Username and password generation | `tests/unit/credentials.test.ts` | 10 |
-| **Security-focused total** | | **243** |
+| **Security-focused total** | | **295** |
 
-Supporting layers: money, dates, i18n, CSV and phone units (31), and integration
-tests for students, lessons, attendance, the payment ledger, staff provisioning
-and the subscription lifecycle (63).
+Supporting layers: 50 unit tests (money, dates, i18n, CSV, phone, timezones) and
+92 integration tests (students, lessons and attendance, scheduling conflicts,
+the payment ledger, staff provisioning, announcements and the subscription
+lifecycle). **437 in total.**
 
 The browser suite (`npm run e2e`) covers the landing page, the login flow for
-all four centre roles, the admin boundary, per-role page access and a
-cross-tenant URL attempt in a real browser — which is also the only place the
+all four centre roles, the admin boundary, per-role page access, an announcement
+posted by an owner and read by the student it was addressed to, and a
+cross-tenant URL attempt — in a real browser, which is also the only place the
 `__Host-` cookie rules are genuinely enforced.
 
 Run them with `npm run test:security` (domain), `npm test` (everything) or

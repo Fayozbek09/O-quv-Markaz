@@ -118,7 +118,7 @@ test.describe('signed-in centre owner', () => {
     const paths = [
       '/center', '/students', '/groups', '/courses', '/calendar', '/attendance',
       '/homework', '/grades', '/teachers', '/payments', '/salaries', '/expenses',
-      '/finance', '/reports', '/billing', '/settings/profile',
+      '/finance', '/reports', '/billing', '/announcements', '/settings/profile',
     ];
     for (const path of paths) {
       const response = await page.goto(path);
@@ -135,8 +135,13 @@ test.describe('signed-in centre owner', () => {
   });
 
   test('logging out clears the session', async ({ page }) => {
-    await page.getByRole('button', { name: /Aziza|A/ }).last().click();
-    await page.getByRole('menuitem', { name: /Chiqish|Выйти|Log out/ }).click();
+    // Addressed by its ARIA relationship rather than by its initials: a name
+    // regex matches any button that happens to contain the same letter, which
+    // made this test pick the wrong control from time to time.
+    await page.locator('button[aria-haspopup="menu"]').last().click();
+    const logout = page.getByRole('menuitem', { name: /Chiqish|Выйти|Log out/ });
+    await logout.waitFor({ state: 'visible' });
+    await logout.click();
     await page.waitForURL('**/login');
     await page.goto('/center');
     await expect(page).toHaveURL(/\/login/);

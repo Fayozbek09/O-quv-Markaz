@@ -154,3 +154,41 @@ test.describe('tenant isolation in the browser', () => {
     expect(response?.status()).toBe(404);
   });
 });
+
+/**
+ * Announcements, followed all the way through a real browser: an owner posts
+ * one, and the student it is addressed to sees it on their own dashboard.
+ */
+test.describe('announcements', () => {
+  test('an owner posts a notice and a student reads it', async ({ page, browser }) => {
+    const title = `Imtihon jadvali ${Date.now()}`;
+
+    await signIn(page, 'owner.karimova', '/center');
+    await page.goto('/announcements');
+    await page.getByRole('button', { name: /E'lon qo'shish|Создать объявление|Post an announcement/ }).click();
+
+    await page.getByLabel(/Sarlavha|Заголовок|Title/).fill(title);
+    await page.getByLabel(/Matn|Текст|Message/).fill('Imtihonlar keyingi hafta boshlanadi.');
+    await page.getByLabel(/Kimga|Кому|Audience/).selectOption('STUDENTS');
+    await page.getByRole('button', { name: /Yaratish|Создать|Create/ }).click();
+
+    await expect(page.getByText(title).first()).toBeVisible();
+
+    // Now as the student it was addressed to, in a session of their own.
+    const studentContext = await browser.newContext();
+    const studentPage = await studentContext.newPage();
+    await signIn(studentPage, 'student.valiyev', '/student');
+    // Twice over: once in the announcements card, once in the notification feed.
+    await expect(studentPage.getByText(title).first()).toBeVisible();
+    await expect(studentPage.getByText(title)).toHaveCount(2);
+    await studentContext.close();
+  });
+
+  test('a teacher does not get the staff announcement tool', async ({ page }) => {
+    await signIn(page, 'teacher.saidova', '/teacher');
+    await page.goto('/announcements');
+    await expect(page.locator('body')).not.toContainText(
+      /E'lon qo'shish|Создать объявление|Post an announcement/,
+    );
+  });
+});

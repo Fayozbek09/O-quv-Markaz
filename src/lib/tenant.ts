@@ -152,6 +152,7 @@ type TenantModel =
   | 'grade'
   | 'salaryPayment'
   | 'expense'
+  | 'announcement'
   | 'organizationMember';
 
 export async function findOwned<T>(

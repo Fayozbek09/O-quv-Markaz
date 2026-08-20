@@ -446,6 +446,25 @@ export const courseInputSchema = z
   })
   .strict();
 
+// ------------------------------------------------------------- announcements
+export const announcementInputSchema = z
+  .object({
+    title: text(160).pipe(z.string().min(1, 'errors.required')),
+    body: text(4000).pipe(z.string().min(1, 'errors.required')),
+    audience: z.enum(['EVERYONE', 'STAFF', 'TEACHERS', 'STUDENTS', 'GROUP']).default('EVERYONE'),
+    /** Honoured only when the audience is GROUP; ignored otherwise. */
+    groupId: uuidSchema.optional().nullable(),
+    expiresAt: z
+      .string()
+      .trim()
+      .max(40)
+      .refine((v) => !Number.isNaN(Date.parse(v)), 'errors.invalidDate')
+      .optional()
+      .nullable(),
+    pinned: z.boolean().default(false),
+  })
+  .strict();
+
 // ------------------------------------------------------------------ homework
 export const homeworkInputSchema = z
   .object({

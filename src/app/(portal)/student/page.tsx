@@ -11,6 +11,7 @@ import { formatDate, formatPercent } from '@/lib/i18n';
 import { INTL_LOCALE } from '@/lib/i18n/config';
 import { AvatarUploader } from '@/components/forms/AvatarUploader';
 import { AttachmentList } from '@/components/ui/AttachmentList';
+import { announcementsForStudent } from '@/lib/domain/announcements';
 import { signFileUrl } from '@/lib/files/storage';
 import { Stat, StatGrid } from '@/components/ui/Stat';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
@@ -32,7 +33,7 @@ export default async function StudentPage() {
   const locale = await getLocale();
 
   const now = new Date();
-  const [groups, lessons, attendance, grades, homework, payments, notifications, org] =
+  const [groups, lessons, attendance, grades, homework, payments, notifications, announcements, org] =
     await Promise.all([
       myGroups(sc),
       myLessons(sc, new Date(now.getTime() - DAY), new Date(now.getTime() + 14 * DAY)),
@@ -41,6 +42,7 @@ export default async function StudentPage() {
       myHomework(sc, 20),
       myPayments(sc),
       myNotifications(user, 8),
+      announcementsForStudent(sc, 5),
       prisma.organization.findUnique({
         where: { id: sc.organizationId },
         select: { name: true, defaultCurrency: true, timezone: true },
@@ -314,13 +316,42 @@ export default async function StudentPage() {
 
         <Card className="lg:col-span-2">
           <CardHeader title={t('student.announcements')} />
+          {announcements.length === 0 ? (
+            <EmptyState title={t('announcements.empty')} />
+          ) : (
+            <ul className="divide-y divide-line">
+              {announcements.map((a) => (
+                <li key={a.id} className="flex flex-col gap-1 px-4 py-3 sm:px-5">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-ink">{a.title}</span>
+                    {a.pinned && <Badge tone="brand">{t('announcements.pin')}</Badge>}
+                    {a.group && <Badge tone="neutral">{a.group.name}</Badge>}
+                    <span className="tnum ml-auto shrink-0 text-[12px] text-ink-faint">
+                      {formatDate(a.createdAt, locale, 'dayMonthTime', tz)}
+                    </span>
+                  </span>
+                  {/* Written by staff; rendered as text, never as markup. */}
+                  <span className="whitespace-pre-wrap text-[13px] text-ink-soft">{a.body}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader title={t('notifications.title')} />
           {notifications.length === 0 ? (
             <EmptyState title={t('notifications.empty')} />
           ) : (
             <ul className="divide-y divide-line">
               {notifications.map((n) => (
                 <li key={n.id} className="flex items-center gap-3 px-4 py-2.5 text-[13px] sm:px-5">
-                  <span className="min-w-0 flex-1 truncate">{t(n.titleKey as never)}</span>
+                  {/* An announcement carries its own text; everything else is a key. */}
+                  <span className="min-w-0 flex-1 truncate">
+                    {typeof (n.payload as { title?: unknown })?.title === 'string'
+                      ? (n.payload as { title: string }).title
+                      : t(n.titleKey as never)}
+                  </span>
                   <span className="tnum shrink-0 text-[12px] text-ink-faint">
                     {formatDate(n.createdAt, locale, 'dayMonthTime', tz)}
                   </span>

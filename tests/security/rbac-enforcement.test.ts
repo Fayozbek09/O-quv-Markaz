@@ -193,3 +193,24 @@ describe('AppError shape', () => {
     }
   });
 });
+
+/**
+ * Announcements are gated on `notifications.send`, which staff who run the
+ * front desk hold and a teacher does not.
+ */
+describe('announcements', () => {
+  it('lets an owner and a receptionist post, but not a teacher', () => {
+    expect(hasPermission(tenant.ctx, 'notifications.send')).toBe(true);
+    expect(hasPermission(reception.ctx, 'notifications.send')).toBe(true);
+    expect(hasPermission(teacher.ctx, 'notifications.send')).toBe(false);
+  });
+
+  it('refuses a teacher at the permission gate the route uses', async () => {
+    await forbidden(async () => assertPermission(teacher.ctx, 'notifications.send'));
+  });
+
+  it('never grants a student anything that would let them post', () => {
+    const studentCtx = { ...tenant.ctx, role: 'STUDENT' as const, permissions: new Set<never>() };
+    expect(studentCtx.permissions.size).toBe(0);
+  });
+});

@@ -36,6 +36,7 @@ export const ru: Dictionary = {
     settings: 'Настройки', profile: 'Профиль', workspace: 'Рабочее пространство',
     notifications: 'Уведомления', security: 'Безопасность',
     logout: 'Выйти', menu: 'Меню',
+    announcements: 'Объявления',
   },
   landing: {
     heroTitle: "Управляйте учебным центром — ученики, занятия и деньги — в одном месте.",
@@ -292,6 +293,7 @@ export const ru: Dictionary = {
     studentRegistered: 'Новый ученик', salaryPaid: 'Зарплата выплачена',
     subscriptionPaid: 'Платёж по подписке принят',
     trialEnding: 'Пробный период заканчивается', subscriptionEnding: 'Подписка заканчивается',
+    announcement: 'Объявление',
     title: 'Уведомления', empty: 'Уведомлений нет',
     markAllRead: 'Отметить все прочитанными', unread: 'Непрочитанные',
     lessonUpcoming: 'Скоро урок', attendanceMissed: 'Посещаемость не отмечена',
@@ -416,6 +418,17 @@ export const ru: Dictionary = {
     physics: 'Физика', chemistry: 'Химия', biology: 'Биология', history: 'История',
     programming: 'Программирование', robotics: 'Робототехника', design: 'Дизайн', sat: 'SAT',
     preschool: 'Подготовка к школе', music: 'Музыка', art: 'Изобразительное искусство',
+  },
+  announcements: {
+    title: 'Объявления', one: 'Объявление', add: 'Создать объявление',
+    edit: 'Изменить объявление', announcementTitle: 'Заголовок', body: 'Текст',
+    audience: 'Кому', EVERYONE: 'Всем', STAFF: 'Всем сотрудникам',
+    TEACHERS: 'Преподавателям', STUDENTS: 'Ученикам', GROUP: 'Одной группе',
+    group: 'Группа', groupRequired: 'Выберите группу.',
+    expiresAt: 'Показывать до', pinned: 'Закрепить сверху', pin: 'Закреплено',
+    posted: 'Объявление опубликовано', deleted: 'Объявление снято',
+    withdraw: 'Снять', empty: 'Объявлений нет', expired: 'Истекло',
+    confirmDelete: 'Снять это объявление?',
   },
   homework: {
     title: 'Домашние задания', add: 'Задать задание', edit: 'Изменить задание',

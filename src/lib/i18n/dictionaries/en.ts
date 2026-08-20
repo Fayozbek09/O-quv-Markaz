@@ -29,6 +29,7 @@ export const en = {
     attendance: 'Attendance', payments: 'Payments', reports: 'Reports', settings: 'Settings',
     profile: 'Profile', workspace: 'Workspace', notifications: 'Notifications',
     security: 'Security', logout: 'Log out', menu: 'Menu',
+    announcements: 'Announcements',
   },
   landing: {
     heroTitle: "Run your education centre — students, lessons, money — in one place.",
@@ -280,6 +281,7 @@ export const en = {
     studentRegistered: 'New student registered', salaryPaid: 'Salary paid',
     subscriptionPaid: 'Subscription payment received',
     trialEnding: 'Your free trial is ending', subscriptionEnding: 'Your subscription is ending',
+    announcement: 'Announcement',
     title: 'Notifications', empty: 'No notifications',
     markAllRead: 'Mark all read', unread: 'Unread',
     lessonUpcoming: 'Upcoming lesson', attendanceMissed: 'Attendance not marked',
@@ -402,6 +404,17 @@ export const en = {
     physics: 'Physics', chemistry: 'Chemistry', biology: 'Biology', history: 'History',
     programming: 'Programming', robotics: 'Robotics', design: 'Design', sat: 'SAT',
     preschool: 'Preschool', music: 'Music', art: 'Art',
+  },
+  announcements: {
+    title: 'Announcements', one: 'Announcement', add: 'Post an announcement',
+    edit: 'Edit announcement', announcementTitle: 'Title', body: 'Message',
+    audience: 'Audience', EVERYONE: 'Everyone', STAFF: 'All staff',
+    TEACHERS: 'Teachers', STUDENTS: 'Students', GROUP: 'One group',
+    group: 'Group', groupRequired: 'Choose the group this is for.',
+    expiresAt: 'Show until', pinned: 'Pin to the top', pin: 'Pinned',
+    posted: 'Announcement posted', deleted: 'Announcement withdrawn',
+    withdraw: 'Withdraw', empty: 'No announcements', expired: 'Expired',
+    confirmDelete: 'Withdraw this announcement?',
   },
   homework: {
     title: 'Homework', add: 'Set homework', edit: 'Edit homework',

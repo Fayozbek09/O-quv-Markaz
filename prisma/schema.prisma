@@ -164,6 +164,15 @@ enum NotificationType {
   ANNOUNCEMENT
 }
 
+/// Who a centre announcement is addressed to.
+enum AnnouncementAudience {
+  EVERYONE
+  STAFF
+  TEACHERS
+  STUDENTS
+  GROUP
+}
+
 enum NotificationChannel {
   IN_APP
   TELEGRAM
@@ -365,6 +374,7 @@ model Organization {
   members              OrganizationMember[]
   students             Student[]
   courses              Course[]
+  announcements        Announcement[]
   groups               Group[]
   homework             Homework[]
   submissions          HomeworkSubmission[]
@@ -418,6 +428,7 @@ model OrganizationMember {
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   groups         Group[]         @relation("GroupTeacher")
+  announcements  Announcement[]  @relation("AnnouncementAuthor")
   lessons        Lesson[]        @relation("LessonTeacher")
   homework       Homework[]      @relation("HomeworkAuthor")
   grades         Grade[]         @relation("GradeAuthor")
@@ -518,15 +529,16 @@ model Group {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course       Course?             @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  teacher      OrganizationMember? @relation("GroupTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
-  members      GroupMember[]
-  lessons      Lesson[]
-  invoices     Invoice[]
-  payments     Payment[]
-  homework     Homework[]
-  grades       Grade[]
+  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course        Course?             @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  teacher       OrganizationMember? @relation("GroupTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  members       GroupMember[]
+  lessons       Lesson[]
+  invoices      Invoice[]
+  payments      Payment[]
+  homework      Homework[]
+  grades        Grade[]
+  announcements Announcement[]
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
@@ -1008,6 +1020,35 @@ model AdminSession {
 }
 
 // ---------------------------------------------------------------- curriculum
+
+/// A notice a centre posts to its own people. The body is free text written by
+/// a member of staff; it is stored and rendered as text and never as markup.
+model Announcement {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  /// The member who posted it; kept as SetNull so removing a member does not
+  /// erase the notice they left behind.
+  authorMemberId String?              @db.Uuid
+  title          String               @db.VarChar(160)
+  body           String               @db.VarChar(4000)
+  audience       AnnouncementAudience @default(EVERYONE)
+  /// Set only when audience is GROUP.
+  groupId        String?              @db.Uuid
+  /// Notices stop showing once this passes; null means it stays up.
+  expiresAt      DateTime?
+  pinned         Boolean              @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author       OrganizationMember? @relation("AnnouncementAuthor", fields: [authorMemberId], references: [id], onDelete: SetNull)
+  group        Group?              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, deletedAt, createdAt])
+  @@index([organizationId, groupId])
+  @@map("announcements")
+}
 
 model Course {
   id              String    @id @default(uuid()) @db.Uuid

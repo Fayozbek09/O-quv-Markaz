@@ -387,6 +387,41 @@ async function main() {
     }
   }
 
+  // ---------------------------------------------------------------- announcements
+  const announcementSpecs = [
+    {
+      title: "Dam olish kunlari dars bo'lmaydi",
+      body: "8-mart bayrami munosabati bilan 8-mart kuni barcha darslar bekor qilinadi. Darslar 9-mart kuni odatdagi jadval bo'yicha davom etadi.",
+      audience: 'EVERYONE' as const,
+      pinned: true,
+    },
+    {
+      title: "To'lovlarni har oyning 5-sanasigacha amalga oshiring",
+      body: "Hurmatli o'quvchilar, oylik to'lovni har oyning 5-sanasigacha qabulxonaga topshirishingizni so'raymiz.",
+      audience: 'STUDENTS' as const,
+      pinned: false,
+    },
+    {
+      title: "O'qituvchilar yig'ilishi — payshanba 17:00",
+      body: "Yangi semestr jadvali muhokama qilinadi. Barcha o'qituvchilar ishtiroki majburiy.",
+      audience: 'TEACHERS' as const,
+      pinned: false,
+    },
+  ];
+
+  for (const spec of announcementSpecs) {
+    await prisma.announcement.create({
+      data: {
+        organizationId: org.id,
+        authorMemberId: org.members[0]!.id,
+        title: spec.title,
+        body: spec.body,
+        audience: spec.audience,
+        pinned: spec.pinned,
+      },
+    });
+  }
+
   // ---------------------------------------------------------------- homework & grades
   let homeworkCount = 0;
   let gradeCount = 0;
@@ -647,6 +682,7 @@ Centre A: ${org.name}  (Toshkent)
   courses ${courses.length}  groups ${groups.length}  students ${students.length}
   lessons ${lessonCount}  attendance ${attendanceCount}
   homework ${homeworkCount}  grades ${gradeCount}
+  announcements ${announcementSpecs.length}
   invoices ${invoiceCount}  payments ${paymentCount}
 
 Centre B: ${orgB.name}  (Samarqand — used to verify tenant isolation)

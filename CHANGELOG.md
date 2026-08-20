@@ -16,6 +16,15 @@ versioning follows [Semantic Versioning](https://semver.org/).
   releases its slot, back-to-back lessons are allowed, and a lesson never
   conflicts with itself when edited. The error names which of the three clashed,
   in all three languages.
+- **Announcements.** A centre posts a notice to everyone, to all staff, to
+  teachers, to students, or to a single group; it can be pinned and given an
+  expiry. The audience is resolved server-side both when the notice is posted
+  (to decide who is notified) and when it is read (to decide whose list it
+  appears in) — a reader never states which audience they belong to, and a
+  group notice is checked against the centre that owns the group. Notices are
+  withdrawn rather than deleted, every action is audited, and posting is gated
+  on `notifications.send`, which a teacher does not hold. Shown on the student
+  portal, on the teaching dashboard and on a staff page at `/announcements`.
 - **Profile photos.** `POST /api/uploads/avatar` sets the signed-in account's
   own photo — every role, students included — or a student's photo when staff
   send a `studentId` and hold `students.update`. The student is resolved inside
@@ -42,6 +51,21 @@ versioning follows [Semantic Versioning](https://semver.org/).
   Re-cancelling an already cancelled lesson does not notify twice, editing a
   lesson without moving it stays quiet, and a student who muted the type gets
   nothing.
+
+### Fixed
+
+- A lesson overlapping an existing one was accepted whenever the two did not
+  start at the same instant. Found while extending the schedule, and covered by
+  a regression test for each of the three resources that can clash.
+- `announcementsForStudent` and `announcementsForMember` combined an expiry
+  filter and an audience filter by spreading two objects that both carried an
+  `OR` key, so the expiry clause was silently discarded and an expired notice
+  stayed on the page. Both now compose through `AND`. Caught by a test written
+  alongside the feature, before it shipped.
+- The end-to-end logout test located the account menu with a name regex loose
+  enough to match unrelated buttons, and failed intermittently as the interface
+  grew. It now addresses the control by its ARIA relationship and waits for the
+  menu.
 
 ## [0.1.0] — 2026-08-20
 
