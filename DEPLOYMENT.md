@@ -134,12 +134,45 @@ degrading visibly rather than silently.
 
 `console` prints codes to the server log — development only.
 
-For **Eskiz.uz** (the common Uzbek gateway) you will need an account, an API
-login and password, and a pre-approved message template. Implement `SmsSender`
-in `src/lib/notifications/senders.ts`; nothing else changes.
+Both gateways are implemented. Switching to one is a matter of credentials, not
+code: set `SMS_PROVIDER` and fill in the variables below.
+
+**Eskiz.uz** (`SMS_PROVIDER=eskiz`) — the gateway most Uzbek businesses use.
+
+| Variable | Where it comes from |
+|---|---|
+| `ESKIZ_EMAIL` | the e-mail you registered at my.eskiz.uz |
+| `ESKIZ_PASSWORD` | that account's password |
+| `ESKIZ_FROM` | approved sender nickname; leave at `4546` until one is granted |
+
+Steps, in order — the last two are where deployments usually stall:
+
+1. Register at **my.eskiz.uz** and sign the contract (a legal entity is
+   required; an individual account is limited to their test numbers).
+2. Top up the balance. Roughly 50–70 so'm per SMS segment at the time of
+   writing; a Cyrillic or Latin-with-diacritics message costs more segments than
+   plain Latin, so keep the OTP text short and unaccented.
+3. **Register the message template in the cabinet and wait for moderation.**
+   Eskiz rejects any text that does not match an approved template — this is the
+   single most common cause of a code that never arrives. Submit the exact
+   wording the application sends, with the code as a placeholder.
+4. Optionally request a sender nickname; until then messages come from `4546`.
+
+The adapter (`src/lib/notifications/providers/eskiz.ts`) signs in once, caches
+the bearer token, and re-authenticates a single time on a 401 before giving up —
+a wrong password fails fast instead of looping. Failures name the gateway's own
+reason (`eskiz_send_failed:400:template not approved`) so a misconfiguration is
+identifiable from the log without the message body ever being written to it.
+
+**Play Mobile** (`SMS_PROVIDER=playmobile`) — set `PLAYMOBILE_LOGIN`,
+`PLAYMOBILE_PASSWORD` and `PLAYMOBILE_ORIGINATOR`. HTTP Basic per request, no
+token to hold, same approval requirement for the originator.
 
 **Until an SMS provider is configured, phone registration cannot complete in
-production.** Email registration and Google login still work.
+production.** Email registration and Google login still work. Neither gateway
+ever reports success it did not get: with credentials missing, `sms.send` throws
+rather than resolving, so a half-finished deployment fails at the first code
+instead of leaving people waiting for one that was never sent.
 
 ### Email
 

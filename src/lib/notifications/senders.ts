@@ -1,4 +1,6 @@
 import { env } from '../env';
+import { eskizSms } from './providers/eskiz';
+import { playMobileSms } from './providers/playmobile';
 
 /**
  * Delivery adapters. `console` is the local/dev driver; the production drivers
@@ -30,17 +32,25 @@ const consoleEmail: EmailSender = {
   },
 };
 
-/**
- * Eskiz.uz is the common Uzbek SMS gateway. Left unimplemented on purpose:
- * it needs ESKIZ_EMAIL/ESKIZ_PASSWORD and a pre-approved template.
- */
 const notConfigured = (name: string): SmsSender => ({
   async send() {
     throw new Error(`sms_provider_not_configured:${name}`);
   },
 });
 
-export const sms: SmsSender = env.SMS_PROVIDER === 'console' ? consoleSms : notConfigured(env.SMS_PROVIDER);
+/**
+ * The two Uzbek gateways, chosen by SMS_PROVIDER. Each throws rather than
+ * pretending to have sent anything when its credentials are absent, so a
+ * misconfigured deployment fails loudly at the first code instead of silently
+ * swallowing every one of them.
+ */
+const SMS_REGISTRY: Record<string, SmsSender> = {
+  console: consoleSms,
+  eskiz: eskizSms,
+  playmobile: playMobileSms,
+};
+
+export const sms: SmsSender = SMS_REGISTRY[env.SMS_PROVIDER] ?? notConfigured(env.SMS_PROVIDER);
 
 export const email: EmailSender =
   env.EMAIL_PROVIDER === 'console'

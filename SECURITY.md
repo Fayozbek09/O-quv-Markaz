@@ -422,7 +422,7 @@ the database password.
 
 ## 18. Test coverage of these claims
 
-**448 automated tests across 31 files**, plus 34 Playwright browser tests. Every
+**457 automated tests across 32 files**, plus 34 Playwright browser tests. Every
 claim above is backed by at least one of them. The counts below are the numbers
 the runner reports, not estimates.
 
@@ -438,6 +438,7 @@ the runner reports, not estimates.
 | OTP issuance, verification and throttling | `tests/security/otp.test.ts` | 12 |
 | Reminder consent and rate limiting | `tests/security/reminders.test.ts` | 8 |
 | Log redaction | `tests/security/logging.test.ts` | 3 |
+| SMS delivery: the code never reaches a log | `tests/security/sms.test.ts` | 9 |
 | HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 35 |
 | Admin/centre boundary, role routing, impersonation audit | `tests/http/admin-http.test.ts` | 18 |
 | Cross-tenant file access, avatar and attachment uploads | `tests/http/files-http.test.ts` | 18 |
@@ -446,12 +447,12 @@ the runner reports, not estimates.
 | Permission matrix and override filtering | `tests/unit/rbac.test.ts` | 15 |
 | Subscription state machine | `tests/unit/subscription.test.ts` | 12 |
 | Username and password generation | `tests/unit/credentials.test.ts` | 10 |
-| **Security-focused total** | | **306** |
+| **Security-focused total** | | **315** |
 
 Supporting layers: 50 unit tests (money, dates, i18n, CSV, phone, timezones) and
 92 integration tests (students, lessons and attendance, scheduling conflicts,
 the payment ledger, staff provisioning, announcements and the subscription
-lifecycle). **448 in total.**
+lifecycle). **457 in total.**
 
 The browser suite (`npm run e2e`) covers the landing page, the login flow for
 all four centre roles, the admin boundary, per-role page access, an announcement

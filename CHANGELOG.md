@@ -42,6 +42,16 @@ versioning follows [Semantic Versioning](https://semver.org/).
   is served as a download inside a sandbox, never rendered in the page. Teachers
   attach files when setting homework; students attach one when handing in, with
   an optional note.
+- **SMS delivery, implemented.** `senders.ts` said Eskiz was "left
+  unimplemented on purpose", which meant phone registration could not complete
+  anywhere but a developer's console. Both Uzbek gateways now work: **Eskiz.uz**
+  (token-based, cached, re-authenticating once on a 401 so a wrong password
+  fails fast instead of looping) and **Play Mobile** (HTTP Basic per request).
+  Phone numbers are normalised to `998XXXXXXXXX` from whatever shape they are
+  stored in, and a gateway with no credentials throws rather than resolving — a
+  sender that silently swallowed a message would leave someone waiting for a
+  code that was never sent. The message body carries a one-time code and is
+  never written to a log, on success or on failure; a test asserts it.
 - **Click payment adapter**, alongside the existing Payme one, proving the
   provider interface is genuinely modular. It verifies Click's MD5 callback
   signature in constant time, refuses a callback addressed to another shop, and

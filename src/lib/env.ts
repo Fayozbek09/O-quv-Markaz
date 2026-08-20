@@ -18,6 +18,15 @@ const schema = z.object({
   STORAGE_LOCAL_DIR: z.string().default('./storage/uploads'),
 
   SMS_PROVIDER: z.enum(['console', 'eskiz', 'playmobile']).default('console'),
+  /** Eskiz.uz account e-mail and password, plus the approved sender nickname. */
+  ESKIZ_EMAIL: z.string().default(''),
+  ESKIZ_PASSWORD: z.string().default(''),
+  ESKIZ_FROM: z.string().default('4546'),
+  /** Play Mobile credentials, if that gateway is used instead. */
+  PLAYMOBILE_LOGIN: z.string().default(''),
+  PLAYMOBILE_PASSWORD: z.string().default(''),
+  PLAYMOBILE_ORIGINATOR: z.string().default('3700'),
+
   EMAIL_PROVIDER: z.enum(['console', 'smtp', 'resend']).default('console'),
 
   GOOGLE_CLIENT_ID: z.string().default(''),
