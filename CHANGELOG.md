@@ -66,8 +66,8 @@ First working version. Everything below is implemented and covered by tests.
 - Privacy Policy and Terms of Service pages, in all three languages.
 
 **Tests**
-- 227 tests across unit, integration, security and HTTP layers, plus 10
-  Playwright end-to-end tests.
+- 250 tests across unit, integration, security and HTTP layers, of which 171
+  are security tests, plus 14 Playwright end-to-end tests in a real browser.
 
 ### Fixed during development
 

@@ -354,15 +354,21 @@ storage, and formal cryptographic key rotation automation.
 | Area | File | Tests |
 |---|---|---|
 | Tenant isolation | `tests/security/tenant-isolation.test.ts` | 24 |
-| OTP | `tests/security/otp.test.ts` | 12 |
-| Injection / mass assignment | `tests/security/injection.test.ts` | 28 |
-| File uploads and signed URLs | `tests/security/uploads.test.ts` | 17 |
-| Webhooks and link tokens | `tests/security/webhooks.test.ts` | 15 |
-| Reminder consent and throttling | `tests/security/reminders.test.ts` | 8 |
+| Injection, mass assignment, parameter pollution | `tests/security/injection.test.ts` | 28 |
+| File uploads, path traversal, signed URLs | `tests/security/uploads.test.ts` | 17 |
+| Webhook signatures and link tokens | `tests/security/webhooks.test.ts` | 15 |
+| OTP issuance, verification and throttling | `tests/security/otp.test.ts` | 12 |
+| Reminder consent and rate limiting | `tests/security/reminders.test.ts` | 8 |
 | Log redaction | `tests/security/logging.test.ts` | 3 |
-| HTTP auth, CSRF, IDOR, cookies | `tests/http/auth-http.test.ts` | 33 |
+| HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 33 |
 | Headers, CORS, roles, bundle secrets | `tests/http/headers-http.test.ts` | 17 |
-| Cross-tenant file access | `tests/http/files-http.test.ts` | 9 |
+| Cross-tenant file access and uploads | `tests/http/files-http.test.ts` | 9 |
 | Report export and query validation | `tests/http/reports-http.test.ts` | 5 |
+| **Security-focused total** | | **171** |
+
+Supporting layers: 50 unit tests (money, phone, CSV, dates, timezones,
+translation parity), 29 integration tests (students, lessons, attendance, the
+payment ledger) and 14 Playwright end-to-end tests. **250 automated tests in
+total**, plus the browser suite.
 
 Run them with `npm run test:security` (domain) or `npm test` (everything).

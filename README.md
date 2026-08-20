@@ -115,6 +115,14 @@ The suite has four layers:
    authentication, CSRF, cookie flags, security headers, CORS, IDOR, role
    checks and a scan of the client bundle for leaked secrets.
 
+250 tests in total, of which 171 are security tests. A further 14 Playwright
+tests drive a real browser (`npm run e2e`) — that layer exists because a
+browser enforces things a test client does not, such as the `__Host-` cookie
+prefix rules.
+
+The HTTP and end-to-end suites need a production build and create one
+automatically if `.next` is missing or was last written by `next dev`.
+
 Tests run against a separate `ustozly_test` database. `tests/setup.ts` refuses
 to run if `DATABASE_URL` does not point at it.
 
