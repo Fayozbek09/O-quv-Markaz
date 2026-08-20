@@ -83,6 +83,17 @@ versioning follows [Semantic Versioning](https://semver.org/).
   `OR` key, so the expiry clause was silently discarded and an expired notice
   stayed on the page. Both now compose through `AND`. Caught by a test written
   alongside the feature, before it shipped.
+- **A teacher could read the whole centre's payment ledger and revenue
+  reports.** `/payments` and `/reports` called `requireOrg()` and rendered,
+  naming no permission at all, so any signed-in member of staff reached them —
+  a teacher holds neither `payments.read` nor `reports.read`. Eight pages were
+  ungated this way; each now declares the permission its own sidebar link
+  already claimed. A source-level test (`tests/security/page-guards.test.ts`)
+  now asserts every staff page names a gate, that the gate is a real
+  permission, and that it matches the link that leads to it — so a page added
+  without one fails the suite rather than waiting to be noticed. That test
+  immediately found a ninth inconsistency: the `/reception` link asked for
+  nothing while its page asked for `students.read`.
 - **A receptionist could read the centre's payroll and profit.** `/center` and
   `/finance` both put salaries paid, expenses and the net result on the page,
   and both were gated on `reports.read` — which a receptionist holds, because

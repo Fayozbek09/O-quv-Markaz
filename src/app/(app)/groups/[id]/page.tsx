@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { requireOrg } from '@/lib/tenant';
-import { loadPage } from '@/lib/page';
+import { loadPage, requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { getGroup } from '@/lib/domain/groups';
 import { currentOrg } from '@/lib/domain/org';
@@ -23,6 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireOrg();
+  requirePagePermission(ctx, 'groups.read');
   const t = await getTranslator();
   const locale = await getLocale();
 

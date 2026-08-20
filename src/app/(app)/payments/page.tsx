@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { requireOrg } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { listPayments } from '@/lib/domain/payments';
 import { listDebtors, orgBalance } from '@/lib/domain/billing';
@@ -30,6 +31,7 @@ export default async function PaymentsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const ctx = await requireOrg();
+  requirePagePermission(ctx, 'payments.read');
   const t = await getTranslator();
   const locale = await getLocale();
   const raw = await searchParams;

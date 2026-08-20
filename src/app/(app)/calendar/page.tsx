@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { requireOrg } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { listLessons } from '@/lib/domain/lessons';
 import { orgTimezone } from '@/lib/domain/org';
@@ -45,6 +46,7 @@ export default async function CalendarPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const ctx = await requireOrg();
+  requirePagePermission(ctx, 'lessons.read');
   const raw = await searchParams;
   const tz = await orgTimezone(ctx);
 

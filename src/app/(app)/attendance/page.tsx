@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { requireOrg, isUuid } from '@/lib/tenant';
+import { requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { getLesson } from '@/lib/domain/lessons';
 import { orgTimezone } from '@/lib/domain/org';
@@ -24,6 +25,7 @@ export default async function AttendancePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const ctx = await requireOrg();
+  requirePagePermission(ctx, 'attendance.read');
   const t = await getTranslator();
   const locale = await getLocale();
   const tz = await orgTimezone(ctx);

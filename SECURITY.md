@@ -422,7 +422,7 @@ the database password.
 
 ## 18. Test coverage of these claims
 
-**459 automated tests across 32 files**, plus 34 Playwright browser tests. Every
+**498 automated tests across 33 files**, plus 35 Playwright browser tests. Every
 claim above is backed by at least one of them. The counts below are the numbers
 the runner reports, not estimates.
 
@@ -432,11 +432,12 @@ the runner reports, not estimates.
 | Cross-tenant access — students, groups, lessons, payments | `tests/security/tenant-isolation.test.ts` | 24 |
 | File uploads, magic bytes, path traversal, signed URLs | `tests/security/uploads.test.ts` | 25 |
 | Cross-tenant access — homework, grades, courses, staff, payroll, expenses | `tests/security/tenant-isolation-extended.test.ts` | 19 |
-| Server-side permission enforcement per role | `tests/security/rbac-enforcement.test.ts` | 19 |
+| Server-side permission enforcement per role | `tests/security/rbac-enforcement.test.ts` | 23 |
 | Webhook signatures (Payme, Click), amounts, link tokens | `tests/security/webhooks.test.ts` | 28 |
 | Student portal self-scoping | `tests/security/portal.test.ts` | 12 |
 | OTP issuance, verification and throttling | `tests/security/otp.test.ts` | 12 |
 | Reminder consent and rate limiting | `tests/security/reminders.test.ts` | 8 |
+| Every staff page names the permission it needs | `tests/security/page-guards.test.ts` | 30 |
 | Log redaction | `tests/security/logging.test.ts` | 3 |
 | SMS delivery: the code never reaches a log | `tests/security/sms.test.ts` | 9 |
 | HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 35 |
@@ -444,15 +445,15 @@ the runner reports, not estimates.
 | Cross-tenant file access, avatar and attachment uploads | `tests/http/files-http.test.ts` | 18 |
 | Headers, CORS, roles, bundle secrets | `tests/http/headers-http.test.ts` | 17 |
 | Report export and query validation | `tests/http/reports-http.test.ts` | 5 |
-| Permission matrix and override filtering | `tests/unit/rbac.test.ts` | 15 |
+| Permission matrix and override filtering | `tests/unit/rbac.test.ts` | 20 |
 | Subscription state machine | `tests/unit/subscription.test.ts` | 12 |
 | Username and password generation | `tests/unit/credentials.test.ts` | 10 |
-| **Security-focused total** | | **317** |
+| **Security-focused total** | | **356** |
 
 Supporting layers: 50 unit tests (money, dates, i18n, CSV, phone, timezones) and
 92 integration tests (students, lessons and attendance, scheduling conflicts,
 the payment ledger, staff provisioning, announcements and the subscription
-lifecycle). **459 in total.**
+lifecycle). **498 in total.**
 
 The browser suite (`npm run e2e`) covers the landing page, the login flow for
 all four centre roles, the admin boundary, per-role page access, an announcement

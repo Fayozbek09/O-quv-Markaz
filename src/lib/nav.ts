@@ -28,7 +28,7 @@ export type NavItem = {
  */
 export const NAV: readonly NavItem[] = [
   { key: 'center', href: '/center', labelKey: 'nav.center', permission: 'finance.read', roles: ['OWNER', 'ADMIN'] },
-  { key: 'reception', href: '/reception', labelKey: 'nav.reception', permission: null, roles: ['RECEPTIONIST', 'ASSISTANT'] },
+  { key: 'reception', href: '/reception', labelKey: 'nav.reception', permission: 'students.read', roles: ['RECEPTIONIST', 'ASSISTANT'] },
   { key: 'teacher', href: '/teacher', labelKey: 'nav.teacherArea', permission: null, roles: ['TEACHER'] },
   { key: 'students', href: '/students', labelKey: 'nav.students', permission: 'students.read' },
   { key: 'groups', href: '/groups', labelKey: 'nav.groups', permission: 'groups.read' },
