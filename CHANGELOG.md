@@ -96,10 +96,16 @@ versioning follows [Semantic Versioning](https://semver.org/).
   from the single-tutor pricing that was otherwise removed. It now reads "first
   month free, then {price}/month for the whole centre", with the price read from
   platform settings rather than written into the interface.
-- The end-to-end logout test located the account menu with a name regex loose
-  enough to match unrelated buttons, and failed intermittently as the interface
-  grew. It now addresses the control by its ARIA relationship and waits for the
-  menu.
+- The end-to-end suite failed intermittently, always on whichever test happened
+  to run late. The cause was the login throttle doing its job: eight attempts per
+  identifier per quarter of an hour, against a suite that signs the same seeded
+  owner in far more often than that, so correct credentials started being
+  refused part-way through a run. The browser suite now clears the counter before
+  each sign-in (`e2e/support/limits.ts`); the limiter itself is unchanged and is
+  still tested where the counting is the point, in the security and HTTP suites.
+  A first attempt at this misread the symptom as a loose selector on the account
+  menu — that selector was worth tightening on its own merits, and now addresses
+  the control by its ARIA relationship, but it was not the fault.
 
 ## [0.1.0] — 2026-08-20
 

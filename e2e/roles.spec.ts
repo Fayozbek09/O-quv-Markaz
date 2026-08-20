@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { clearLoginThrottle } from './support/limits';
 
 /**
  * Role separation, seen through a real browser.
@@ -10,6 +11,8 @@ import { test, expect, type Page } from '@playwright/test';
 const PASSWORD = 'Demo-Markaz-2026!';
 
 async function signIn(page: Page, username: string, expectPath: string) {
+  // The suite signs the same accounts in many times over; see support/limits.ts.
+  await clearLoginThrottle();
   await page.goto('/login');
   await page.locator('input[name="identifier"]').fill(username);
   await page.locator('input[name="password"]').fill(PASSWORD);

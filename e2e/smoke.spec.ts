@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { clearLoginThrottle } from './support/limits';
 
 /**
  * A short walk through the parts a user actually touches. These complement the
@@ -89,6 +90,8 @@ test.describe('signed-in centre owner', () => {
    * enforces the __Host- prefix rules.
    */
   test.beforeEach(async ({ page }) => {
+    // The suite signs the same account in many times over; see support/limits.ts.
+    await clearLoginThrottle();
     await page.goto('/login');
     await page.locator('input[name="identifier"]').fill('owner.karimova');
     await page.locator('input[name="password"]').fill('Demo-Markaz-2026!');
