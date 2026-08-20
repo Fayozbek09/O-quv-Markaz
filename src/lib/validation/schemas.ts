@@ -258,6 +258,9 @@ export const reportQuerySchema = z
     year: z.coerce.number().int().min(2020).max(2100),
     month: z.coerce.number().int().min(1).max(12),
     groupId: uuidSchema.optional(),
+    // The export format is part of the query, so the strict schema has to know
+    // about it - otherwise ?format=csv is rejected as an unknown key.
+    format: z.enum(['json', 'csv']).default('json'),
   })
   .strict();
 

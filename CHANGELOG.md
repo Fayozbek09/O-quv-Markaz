@@ -83,6 +83,9 @@ test:
   fully paid invoice `OPEN`. Payments now apply to the oldest open charge for
   that student and group.
 - The skip link was labelled "Continue" instead of naming its destination.
+- `GET /api/reports?format=csv` returned 422. The strict query schema did not
+  know about `format`, so the export button produced a validation error instead
+  of a file. Found by driving the running application rather than by a test.
 - `npm audit` reported six high-severity issues from older `sharp`, `postcss`
   and `deepmerge-ts` copies nested inside framework packages. `overrides` now
   pin all three to patched versions; the audit is clean. The image pipeline

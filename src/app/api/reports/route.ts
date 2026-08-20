@@ -6,11 +6,11 @@ import { orgTimezone } from '@/lib/domain/org';
 import { formatMoney } from '@/lib/money';
 
 export const GET = orgRoute(async (ctx, request) => {
-  const query = readQuery(request, reportQuerySchema.extend({}));
+  const query = readQuery(request, reportQuerySchema);
   const tz = await orgTimezone(ctx);
   const report = await monthlyReport(ctx, query.year, query.month, tz, query.groupId);
 
-  if (new URL(request.url).searchParams.get('format') === 'csv') {
+  if (query.format === 'csv') {
     const rows = report.groups.map((g) => ({
       group: g.name,
       students: g.students,

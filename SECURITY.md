@@ -363,5 +363,6 @@ storage, and formal cryptographic key rotation automation.
 | HTTP auth, CSRF, IDOR, cookies | `tests/http/auth-http.test.ts` | 33 |
 | Headers, CORS, roles, bundle secrets | `tests/http/headers-http.test.ts` | 17 |
 | Cross-tenant file access | `tests/http/files-http.test.ts` | 9 |
+| Report export and query validation | `tests/http/reports-http.test.ts` | 5 |
 
 Run them with `npm run test:security` (domain) or `npm test` (everything).
