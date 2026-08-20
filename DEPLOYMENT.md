@@ -192,6 +192,20 @@ For Payme you need a merchant account, `PAYME_MERCHANT_ID` and
 idempotency and amount reconciliation; the JSON-RPC methods that need a live
 merchant cabinet are marked and left to be completed.
 
+For Click you need a shop in the Click merchant cabinet, `CLICK_MERCHANT_ID`
+(the `service_id` Click issues) and `CLICK_SECRET_KEY`, with both the Prepare
+and Complete URLs pointed at `${APP_URL}/api/billing/webhook`. The adapter in
+`src/lib/payments/providers/click.ts` verifies the MD5 signature in constant
+time, refuses a callback addressed to another shop, and treats Click's two-phase
+callback correctly: `action=0` (Prepare) is recorded as **pending** and extends
+nothing, and only `action=1` (Complete) with a non-negative `error` settles the
+term. The two phases are stored under distinct event ids so replaying either is
+a no-op. Click quotes amounts in so'm; the adapter converts to tiyin, and the
+webhook route still refuses any amount that disagrees with the stored intent.
+
+Whichever provider is configured, no browser response ever activates a plan —
+only a signed callback does.
+
 ---
 
 ## 5. File storage

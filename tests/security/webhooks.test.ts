@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { db, truncateAll, createTenant, type Tenant } from '../factories';
 import { paymeProvider } from '@/lib/payments/providers/payme';
 import { manualProvider } from '@/lib/payments/providers/manual';
+import { clickProvider, clickSignature } from '@/lib/payments/providers/click';
 import { createLinkToken, redeemLinkToken } from '@/lib/integrations/telegram/link';
 import { safeEqual } from '@/lib/crypto';
 
@@ -165,5 +166,128 @@ describe('Telegram link tokens', () => {
 
   it('rejects a guessed token', async () => {
     expect(await redeemLinkToken('totally-made-up')).toMatchObject({ ok: false, reason: 'invalid' });
+  });
+});
+
+/**
+ * Click's callback is signed with an MD5 digest over concatenated fields, and
+ * arrives twice for one payment. Both facts are load-bearing: a forged digest
+ * must be refused, and the first call must not buy anything.
+ */
+describe('click webhook verification', () => {
+  const SERVICE_ID = process.env.CLICK_MERCHANT_ID as string;
+  const SECRET = process.env.CLICK_SECRET_KEY as string;
+
+  const form = (fields: Record<string, string>) => ({
+    rawBody: new URLSearchParams(fields).toString(),
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  });
+
+  const callback = (over: Record<string, string> = {}) => {
+    const base = {
+      click_trans_id: '900001',
+      service_id: SERVICE_ID,
+      merchant_trans_id: 'intent-abc',
+      merchant_prepare_id: '55',
+      amount: '300000.00',
+      action: '1',
+      sign_time: '2026-08-20 12:00:00',
+      error: '0',
+      ...over,
+    };
+    const signed = {
+      ...base,
+      sign_string: clickSignature({
+        clickTransId: base.click_trans_id,
+        serviceId: base.service_id,
+        merchantTransId: base.merchant_trans_id,
+        merchantPrepareId: base.merchant_prepare_id,
+        amount: base.amount,
+        action: base.action,
+        signTime: base.sign_time,
+        secret: SECRET,
+      }),
+    };
+    return { ...signed, ...(over.sign_string ? { sign_string: over.sign_string } : {}) };
+  };
+
+  it('accepts a correctly signed settlement and converts the amount', async () => {
+    const result = await clickProvider.verifyWebhook(form(callback()));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.outcome).toBe('succeeded');
+      // 300 000 so'm is 30 000 000 tiyin.
+      expect(result.amountMinor).toBe(30_000_000n);
+      expect(result.idempotencyKey).toBe('intent-abc');
+    }
+  });
+
+  it('treats the reservation call as pending, never as a purchase', async () => {
+    const result = await clickProvider.verifyWebhook(form(callback({ action: '0' })));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.outcome).toBe('pending');
+  });
+
+  it('gives the two phases different event ids so neither masks the other', async () => {
+    const prepare = await clickProvider.verifyWebhook(form(callback({ action: '0' })));
+    const complete = await clickProvider.verifyWebhook(form(callback()));
+    expect(prepare.ok && complete.ok).toBe(true);
+    if (prepare.ok && complete.ok) {
+      expect(prepare.externalId).not.toBe(complete.externalId);
+    }
+  });
+
+  it('rejects a forged signature', async () => {
+    const result = await clickProvider.verifyWebhook(
+      form(callback({ sign_string: 'f'.repeat(32) })),
+    );
+    expect(result).toMatchObject({ ok: false, reason: 'bad_signature' });
+  });
+
+  it('rejects an amount changed after signing', async () => {
+    const signed = callback();
+    const result = await clickProvider.verifyWebhook(form({ ...signed, amount: '1.00' }));
+    expect(result).toMatchObject({ ok: false, reason: 'bad_signature' });
+  });
+
+  it('rejects a callback addressed to a different shop', async () => {
+    const result = await clickProvider.verifyWebhook(
+      form(callback({ service_id: 'someone_else' })),
+    );
+    expect(result).toMatchObject({ ok: false, reason: 'wrong_service' });
+  });
+
+  it('rejects an unknown action rather than guessing', async () => {
+    const result = await clickProvider.verifyWebhook(form(callback({ action: '7' })));
+    expect(result).toMatchObject({ ok: false, reason: 'unknown_action' });
+  });
+
+  it('rejects a body with fields missing', async () => {
+    const result = await clickProvider.verifyWebhook(form({ click_trans_id: '1' }));
+    expect(result).toMatchObject({ ok: false, reason: 'missing_fields' });
+  });
+
+  it('reports a negative error code as a failure, not a success', async () => {
+    const result = await clickProvider.verifyWebhook(form(callback({ error: '-5' })));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.outcome).toBe('failed');
+  });
+
+  it('reports the cancellation code as cancelled', async () => {
+    const result = await clickProvider.verifyWebhook(form(callback({ error: '-9' })));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.outcome).toBe('canceled');
+  });
+
+  it('signs the two phases differently, so a prepare digest cannot settle', async () => {
+    const prepareDigest = clickSignature({
+      clickTransId: '900001', serviceId: SERVICE_ID, merchantTransId: 'intent-abc',
+      merchantPrepareId: '55', amount: '300000.00', action: '0',
+      signTime: '2026-08-20 12:00:00', secret: SECRET,
+    });
+    const result = await clickProvider.verifyWebhook(
+      form(callback({ action: '1', sign_string: prepareDigest })),
+    );
+    expect(result).toMatchObject({ ok: false, reason: 'bad_signature' });
   });
 });

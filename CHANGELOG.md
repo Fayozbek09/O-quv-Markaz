@@ -42,6 +42,14 @@ versioning follows [Semantic Versioning](https://semver.org/).
   is served as a download inside a sandbox, never rendered in the page. Teachers
   attach files when setting homework; students attach one when handing in, with
   an optional note.
+- **Click payment adapter**, alongside the existing Payme one, proving the
+  provider interface is genuinely modular. It verifies Click's MD5 callback
+  signature in constant time, refuses a callback addressed to another shop, and
+  handles the two-phase callback honestly: `action=0` (Prepare) is recorded as
+  **pending** and buys nothing, only `action=1` (Complete) settles the term, and
+  the two phases carry distinct event ids so replaying either is a no-op. The
+  `WebhookVerification` contract gained a `pending` outcome for this, and the
+  shared webhook route acknowledges it without touching the intent.
 - A per-user upload rate bucket, and the lapsed-subscription write gate applied
   explicitly to both upload routes — they are hand-rolled rather than wrapped in
   `orgMutation`, so they would otherwise have skipped it.

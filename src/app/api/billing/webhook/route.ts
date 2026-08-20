@@ -80,6 +80,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'amount_mismatch' }, { status: 400 });
   }
 
+  // A multi-phase provider reserves before it settles. The reservation is
+  // signed and recorded, but it buys nothing until the settling call arrives.
+  if (verification.outcome === 'pending') {
+    await prisma.webhookEvent.updateMany({
+      where: { provider: paymentProvider.name, externalId: verification.externalId },
+      data: { processedAt: new Date() },
+    });
+    return NextResponse.json({ ok: true, pending: true });
+  }
+
   if (verification.outcome !== 'succeeded') {
     await prisma.billingIntent.update({
       where: { id: intent.id },

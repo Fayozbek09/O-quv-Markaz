@@ -36,7 +36,12 @@ export type WebhookVerification =
       externalId: string;
       /** The intent this event settles. */
       idempotencyKey: string;
-      outcome: 'succeeded' | 'failed' | 'canceled';
+      /**
+       * `pending` is for providers whose callback has more than one phase —
+       * Click calls once to reserve and again to settle. A pending event is
+       * recorded and acknowledged, and leaves the intent untouched.
+       */
+      outcome: 'succeeded' | 'failed' | 'canceled' | 'pending';
       amountMinor: bigint;
       currency: string;
     };
