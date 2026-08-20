@@ -9,6 +9,7 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -22,9 +23,10 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npx dotenv-cli -e .env.test -- next start -p ${PORT}`,
+    command: `npx dotenv-cli -e .env.e2e -- next start -p ${PORT}`,
     url: `${BASE_URL}/login`,
-    reuseExistingServer: true,
+    // Always start fresh: a reused server may hold the previous build.
+    reuseExistingServer: false,
     timeout: 120_000,
     env: { APP_URL: BASE_URL },
   },

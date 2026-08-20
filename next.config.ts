@@ -10,6 +10,8 @@ const config: NextConfig = {
     serverActions: { bodySizeLimit: '2mb' },
   },
   images: { formats: ['image/webp'] },
+  // The floating dev indicator sits on top of the sidebar's Settings link.
+  devIndicators: false,
   eslint: { ignoreDuringBuilds: true },
 };
 

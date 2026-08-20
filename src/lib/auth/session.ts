@@ -2,7 +2,7 @@ import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import { prisma } from '../db';
 import { randomToken, sha256, hashIp } from '../crypto';
-import { isProd } from '../env';
+// isProd is no longer needed here: the session cookie is always Secure.
 import type { OrgRole } from '@/generated/prisma/enums';
 
 export const SESSION_COOKIE = '__Host-ustozly_session';
@@ -30,9 +30,13 @@ export type SessionUser = {
 function cookieOptions(maxAgeSeconds: number) {
   return {
     httpOnly: true,
-    // __Host- prefix requires secure+path=/ and no domain. In local http dev the
-    // browser tolerates it on localhost.
-    secure: isProd,
+    // Always Secure, including in development. The __Host- prefix *requires*
+    // the Secure attribute, and a browser silently discards the cookie without
+    // it - which looks like "login succeeds but nothing happens". Browsers
+    // treat http://localhost as a trustworthy origin, so this works locally;
+    // it will not work over plain http on a LAN address, which is intended -
+    // a session should never travel unencrypted off the machine.
+    secure: true,
     sameSite: 'lax' as const,
     path: '/',
     maxAge: maxAgeSeconds,

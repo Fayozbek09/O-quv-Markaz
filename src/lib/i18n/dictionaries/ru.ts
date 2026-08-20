@@ -312,6 +312,24 @@ export const ru: Dictionary = {
     privacyTitle: 'Политика конфиденциальности', termsTitle: 'Условия использования',
     lastUpdated: 'Последнее обновление: {date}',
   },
+  /**
+   * Month names live here rather than coming from Intl: browser ICU data for
+   * Uzbek is incomplete and renders "M08" instead of "Avgust".
+   */
+  months: {
+    m1: 'Январь',
+    m2: 'Февраль',
+    m3: 'Март',
+    m4: 'Апрель',
+    m5: 'Май',
+    m6: 'Июнь',
+    m7: 'Июль',
+    m8: 'Август',
+    m9: 'Сентябрь',
+    m10: 'Октябрь',
+    m11: 'Ноябрь',
+    m12: 'Декабрь',
+  },
   weekdays: {
     short1: 'Пн', short2: 'Вт', short3: 'Ср', short4: 'Чт',
     short5: 'Пт', short6: 'Сб', short7: 'Вс',

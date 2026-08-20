@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { googleConfigured, isProd } from '@/lib/env';
+import { googleConfigured } from '@/lib/env';
 import { authorizeUrl, createPkce, GOOGLE_STATE_COOKIE, GOOGLE_VERIFIER_COOKIE } from '@/lib/auth/google';
 import { toErrorResponse } from '@/lib/api';
 
@@ -18,7 +18,9 @@ export async function GET() {
     const store = await cookies();
     const options = {
       httpOnly: true,
-      secure: isProd,
+      // Secure for the same reason as the session cookie: localhost counts as
+      // a trustworthy origin, so this works in development too.
+      secure: true,
       sameSite: 'lax' as const,
       path: '/',
       maxAge: 600,

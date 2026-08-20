@@ -9,6 +9,7 @@ import { messageFor } from '@/lib/client/errors';
 import { TextField, SelectField } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { FormError } from '@/components/forms/AuthCard';
+import type { TKey } from '@/lib/i18n';
 
 export function GenerateInvoicesForm({
   groups,
@@ -59,9 +60,7 @@ export function GenerateInvoicesForm({
         <SelectField label={t('common.month')} value={month} onChange={(e) => setMonth(Number(e.target.value))}>
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
             <option key={m} value={m}>
-              {new Intl.DateTimeFormat(t.locale === 'uz' ? 'uz-UZ' : t.locale === 'ru' ? 'ru-RU' : 'en-US', {
-                month: 'long',
-              }).format(new Date(Date.UTC(2024, m - 1, 1)))}
+              {t(`months.m${m}` as TKey)}
             </option>
           ))}
         </SelectField>

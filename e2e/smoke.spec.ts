@@ -82,6 +82,57 @@ test.describe('authentication screens', () => {
   });
 });
 
+test.describe('signed-in session', () => {
+  /**
+   * This is the test that catches a cookie a browser refuses to store. The HTTP
+   * suite uses its own cookie jar, which accepts anything; only a real browser
+   * enforces the __Host- prefix rules.
+   */
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+    await page.locator('input[name="identifier"]').fill('ustoz@ustozly.uz');
+    await page.locator('input[name="password"]').fill('Ustozly2026!');
+    await page.getByRole('button', { name: /Kirish|Войти|Log in/ }).click();
+    await page.waitForURL('**/dashboard');
+  });
+
+  test('a browser stores the session and lands on the dashboard', async ({ page }) => {
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByRole('heading', { name: /Salom|Здравствуйте|Hello/ })).toBeVisible();
+
+    const cookies = await page.context().cookies();
+    const session = cookies.find((c) => c.name.includes('ustozly_session'));
+    expect(session, 'the browser must actually keep the session cookie').toBeDefined();
+    expect(session?.httpOnly).toBe(true);
+    expect(session?.secure).toBe(true);
+  });
+
+  test('the session survives a reload and a navigation', async ({ page }) => {
+    await page.reload();
+    await expect(page).toHaveURL(/\/dashboard/);
+
+    await page.getByRole('link', { name: /O'quvchilar|Ученики|Students/ }).first().click();
+    await expect(page).toHaveURL(/\/students/);
+    await expect(page.getByRole('heading', { name: /O'quvchilar|Ученики|Students/ }).first()).toBeVisible();
+  });
+
+  test('every main screen renders for a signed-in teacher', async ({ page }) => {
+    for (const path of ['/students', '/groups', '/calendar', '/attendance', '/payments', '/reports', '/settings/profile']) {
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(200);
+      await expect(page.locator('main')).toBeVisible();
+    }
+  });
+
+  test('logging out clears the session', async ({ page }) => {
+    await page.getByRole('button', { name: /Test|Aziza|A/ }).last().click();
+    await page.getByRole('menuitem', { name: /Chiqish|Выйти|Log out/ }).click();
+    await page.waitForURL('**/login');
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/login/);
+  });
+});
+
 test.describe('legal pages', () => {
   for (const path of ['/privacy', '/terms']) {
     test(`${path} renders content in the selected language`, async ({ page }) => {

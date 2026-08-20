@@ -1,4 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { config } from 'dotenv';
 
 /**
@@ -37,6 +38,13 @@ export async function setup() {
 
   const testEnv: Record<string, string> = {};
   config({ path: '.env.test', processEnv: testEnv });
+
+  // `next start` needs a production build. Running the dev server wipes it, so
+  // build on demand rather than failing with an opaque startup error.
+  if (!existsSync('.next/BUILD_ID')) {
+    const build = spawnSync('npx', ['next', 'build'], { stdio: 'inherit' });
+    if (build.status !== 0) throw new Error('next build failed; cannot start the HTTP test server');
+  }
 
   child = spawn('npx', ['next', 'start', '-p', String(PORT)], {
     cwd: process.cwd(),

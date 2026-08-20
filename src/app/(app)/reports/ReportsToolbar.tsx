@@ -4,7 +4,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n/provider';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { INTL_LOCALE } from '@/lib/i18n/config';
+import type { TKey } from '@/lib/i18n';
 
 export function ReportsToolbar({
   year,
@@ -32,8 +32,9 @@ export function ReportsToolbar({
   }
 
   const csvHref = `/api/reports?year=${year}&month=${month}${groupId ? `&groupId=${groupId}` : ''}&format=csv`;
-  const monthName = (m: number) =>
-    new Intl.DateTimeFormat(INTL_LOCALE[t.locale], { month: 'long' }).format(new Date(Date.UTC(2024, m - 1, 1)));
+  // Month names come from the dictionary, not from Intl: Chromium's ICU data
+  // for uz-UZ is incomplete and renders "M08" instead of "Avgust".
+  const monthName = (m: number) => t(`months.m${m}` as TKey);
 
   return (
     <>

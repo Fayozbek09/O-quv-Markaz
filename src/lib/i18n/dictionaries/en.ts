@@ -300,6 +300,24 @@ export const en = {
     privacyTitle: 'Privacy Policy', termsTitle: 'Terms of Service',
     lastUpdated: 'Last updated: {date}',
   },
+  /**
+   * Month names live here rather than coming from Intl: browser ICU data for
+   * Uzbek is incomplete and renders "M08" instead of "Avgust".
+   */
+  months: {
+    m1: 'January',
+    m2: 'February',
+    m3: 'March',
+    m4: 'April',
+    m5: 'May',
+    m6: 'June',
+    m7: 'July',
+    m8: 'August',
+    m9: 'September',
+    m10: 'October',
+    m11: 'November',
+    m12: 'December',
+  },
   weekdays: {
     short1: 'Mon', short2: 'Tue', short3: 'Wed', short4: 'Thu',
     short5: 'Fri', short6: 'Sat', short7: 'Sun',
