@@ -1,0 +1,156 @@
+@import 'tailwindcss';
+
+/*
+ * Ustozly design tokens.
+ * The palette is deliberately restrained: one blue for action, one amber for
+ * "money owed", one red for destructive. Everything else is neutral, so a
+ * dashboard full of numbers stays readable on a cheap laptop screen.
+ */
+@theme {
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f2f4f7;
+  --color-line: #e3e7ed;
+  --color-line-strong: #cdd4de;
+
+  --color-ink: #10151f;
+  --color-ink-soft: #4a5464;
+  --color-ink-faint: #7a8595;
+
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dae6ff;
+  --color-brand-500: #2f62d8;
+  --color-brand-600: #2450b8;
+  --color-brand-700: #1c3f92;
+
+  --color-ok-50: #e9f8ef;
+  --color-ok-600: #167a45;
+  --color-warn-50: #fff5e6;
+  --color-warn-600: #a45d05;
+  --color-danger-50: #fdecec;
+  --color-danger-600: #b42121;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --radius-card: 10px;
+  --radius-field: 8px;
+
+  --shadow-card: 0 1px 2px rgb(16 21 31 / 0.04), 0 1px 3px rgb(16 21 31 / 0.06);
+  --shadow-pop: 0 8px 24px rgb(16 21 31 / 0.12), 0 2px 6px rgb(16 21 31 / 0.06);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: 'cv02', 'cv03', 'tnum';
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Tabular figures everywhere money or counts appear. */
+  table,
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3, h4 {
+    color: var(--color-ink);
+    font-weight: 600;
+    letter-spacing: -0.011em;
+  }
+
+  /* A single, always-visible focus treatment - keyboard users never lose their place. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--color-brand-100);
+  }
+
+  /* Respect the user's motion preference rather than animating regardless. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 100;
+    background: var(--color-surface);
+    padding: 0.5rem 1rem;
+    box-shadow: var(--shadow-pop);
+    border-radius: 0 0 var(--radius-field) 0;
+  }
+  .skip-link:focus {
+    left: 0;
+  }
+
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .field {
+    width: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-field);
+    padding: 0.5rem 0.75rem;
+    font-size: 14px;
+    color: var(--color-ink);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .field::placeholder {
+    color: var(--color-ink-faint);
+  }
+  .field:hover:not(:disabled) {
+    border-color: #b6bfcc;
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px var(--color-brand-50);
+  }
+  .field:disabled {
+    background: var(--color-surface-muted);
+    color: var(--color-ink-faint);
+    cursor: not-allowed;
+  }
+  .field[aria-invalid='true'] {
+    border-color: var(--color-danger-600);
+  }
+  .field[aria-invalid='true']:focus {
+    box-shadow: 0 0 0 3px var(--color-danger-50);
+  }
+
+  /* Print: reports should come out of the browser looking deliberate. */
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff; font-size: 11px; }
+    .card { box-shadow: none; border-color: #ccc; break-inside: avoid; }
+  }
+}
