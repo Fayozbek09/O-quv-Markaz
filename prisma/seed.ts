@@ -45,6 +45,7 @@ async function createTeacher(input: {
   lastName: string;
   subject: string;
   orgName: string;
+  plan?: 'FREE' | 'PRO';
 }) {
   const user = await prisma.user.create({
     data: {
@@ -73,7 +74,7 @@ async function createTeacher(input: {
       timezone: TZ,
       locale: 'UZ',
       members: { create: { userId: user.id, role: 'OWNER' } },
-      subscription: { create: { plan: 'FREE' } },
+      subscription: { create: { plan: input.plan ?? 'FREE' } },
     },
     include: { members: true },
   });
@@ -112,6 +113,9 @@ async function main() {
     lastName: 'Karimova',
     subject: 'Ingliz tili',
     orgName: 'Aziza English Studio',
+    // PRO, so the seeded 10 students do not sit exactly on the free ceiling and
+    // block the first thing a developer tries: adding a student.
+    plan: 'PRO',
   });
 
   const students: StudentModel[] = [];
@@ -334,9 +338,12 @@ Workspace A: ${a.org.name}
   lessons: ${lessonCount}   attendance rows: ${attendanceCount}
   invoices: ${invoiceCount}   payments: ${paymentCount}
 
+  plan: PRO (so you can add students straight away)
+
 Workspace B: ${b.org.name}   (used to verify tenant isolation)
   login: boshqa@ustozly.uz  /  +998907776655
   password: Ustozly2026!
+  plan: FREE (10-student ceiling, to see the plan limit in action)
 `);
 }
 

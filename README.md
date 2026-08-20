@@ -63,13 +63,14 @@ npm run dev          # http://localhost:3000
 
 Both accounts use the password **`Ustozly2026!`**
 
-| Workspace | Email | Phone |
-|---|---|---|
-| Aziza English Studio | `ustoz@ustozly.uz` | `+998901112233` |
-| Bobur Math Center | `boshqa@ustozly.uz` | `+998907776655` |
+| Workspace | Email | Phone | Plan |
+|---|---|---|---|
+| Aziza English Studio | `ustoz@ustozly.uz` | `+998901112233` | Pro |
+| Bobur Math Center | `boshqa@ustozly.uz` | `+998907776655` | Free |
 
 The second workspace exists so you can confirm by hand that one teacher can
-never see another teacher's data.
+never see another teacher's data — and, being on the Free plan with a
+10-student ceiling, it also shows the plan limit refusing an eleventh student.
 
 Seeded data: 1 teacher, 3 groups, 10 students, ~36 lessons, attendance history,
 two months of charges, and a realistic spread of paid / partly paid / unpaid.
