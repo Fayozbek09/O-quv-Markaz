@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
+import { requireOrgPage } from '@/lib/page';
 import { teacherOverview } from '@/lib/domain/roleDashboards';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * hidden — they are never fetched.
  */
 export default async function TeacherPage() {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   const t = await getTranslator();
   const locale = await getLocale();
   const tz = await orgTimezone(ctx);

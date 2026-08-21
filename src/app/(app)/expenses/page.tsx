@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { listExpenses } from '@/lib/domain/finance';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -23,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
 type Search = { year?: string; month?: string };
 
 export default async function ExpensesPage({ searchParams }: { searchParams: Promise<Search> }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'expenses.read');
 
   const params = await searchParams;

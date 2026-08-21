@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireAdmin, platformStats, systemHealth } from '@/lib/admin';
+import { requireAdminPage } from '@/lib/page';
+import { platformStats, systemHealth } from '@/lib/admin';
 import { getPricing } from '@/lib/domain/settings';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
 import { formatMoney } from '@/lib/money';
@@ -19,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminDashboardPage() {
-  await requireAdmin();
+  await requireAdminPage();
   const t = await getTranslator();
   const locale = await getLocale();
 
@@ -66,7 +67,12 @@ export default async function AdminDashboardPage() {
         <Stat label={t('admin.totalCenters')} value={stats.centers} sub={`${t('admin.registrations')}: ${stats.registrations30d}`} />
         <Stat label={t('admin.activeCenters')} value={stats.activeCenters} tone="ok" />
         <Stat label={t('admin.suspendedCenters')} value={stats.suspendedCenters} tone={stats.suspendedCenters > 0 ? 'warn' : 'neutral'} />
-        <Stat label={t('admin.mrr')} value={money(stats.mrrMinor)} tone="brand" sub={`${t('common.month')}: ${money(stats.monthCollectedMinor)}`} />
+        <Stat
+          label={t('admin.mrr')}
+          value={money(stats.mrrMinor)}
+          tone="brand"
+          sub={`${t('common.month')}: ${money(stats.monthCollectedMinor)} · ${t('admin.yearCollected')}: ${money(stats.yearCollectedMinor)}`}
+        />
       </StatGrid>
 
       <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-ink-faint">

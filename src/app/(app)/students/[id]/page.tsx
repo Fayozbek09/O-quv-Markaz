@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { loadPage, requirePagePermission } from '@/lib/page';
+import { loadPage, requireOrgPage, requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { getStudent, studentAttendanceStats } from '@/lib/domain/students';
 import { studentBalance } from '@/lib/domain/billing';
@@ -25,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'students.read');
   const t = await getTranslator();
   const locale = await getLocale();

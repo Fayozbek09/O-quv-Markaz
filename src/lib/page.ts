@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { AppError } from './errors';
-import type { OrgContext } from './tenant';
+import { requireOrg, type OrgContext } from './tenant';
+import { requireAdmin, type AdminContext } from './admin';
 import type { Permission } from './rbac';
 
 /**
@@ -25,6 +26,38 @@ export async function loadPage<T>(load: () => Promise<T>): Promise<T> {
       if (err.status === 404) notFound();
       if (err.status === 403) redirect('/forbidden');
       if (err.status === 401) redirect('/login');
+    }
+    throw err;
+  }
+}
+
+/**
+ * `requireOrg` for a server component.
+ *
+ * The bare call throws an `AppError`, which is right for an API route that owes
+ * the caller a 403. In a page it escapes to the error boundary, and because
+ * Next renders a page segment alongside its layout, an anonymous or refused
+ * request logged `⨯ Error [AppError]: forbidden` on every hit even though the
+ * layout's redirect is what the reader actually got. Routing through `loadPage`
+ * makes the page redirect on its own account rather than relying on its layout,
+ * and leaves the server log carrying real faults only.
+ */
+export async function requireOrgPage(permission?: Permission): Promise<OrgContext> {
+  return loadPage(() => requireOrg(permission));
+}
+
+/**
+ * `requireAdmin` for a server component, for the same reason as
+ * `requireOrgPage`. A centre session at an /admin page is a 403 and an
+ * anonymous one a 401; both belong at /admin/login, not in the crash boundary
+ * and not in the server log.
+ */
+export async function requireAdminPage(): Promise<AdminContext> {
+  try {
+    return await requireAdmin();
+  } catch (err) {
+    if (err instanceof AppError && (err.status === 401 || err.status === 403)) {
+      redirect('/admin/login');
     }
     throw err;
   }

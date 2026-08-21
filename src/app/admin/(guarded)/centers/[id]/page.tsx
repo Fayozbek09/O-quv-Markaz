@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireAdmin } from '@/lib/admin';
+import { requireAdminPage } from '@/lib/page';
+
 import { isUuid } from '@/lib/tenant';
 import { currentSubscription } from '@/lib/domain/subscription';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -23,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminCenterPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdmin();
+  await requireAdminPage();
   const { id } = await params;
   if (!isUuid(id)) notFound();
 

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { requireUser } from '@/lib/tenant';
+import { loadPage } from '@/lib/page';
 import {
   requireStudent, myGroups, myLessons, myAttendance, myGrades, myHomework,
   myPayments, myNotifications,
@@ -28,7 +29,9 @@ const DAY = 86_400_000;
 
 export default async function StudentPage() {
   const user = await requireUser();
-  const sc = await requireStudent(user);
+  // The layout refuses a non-student too, but a page segment renders alongside
+  // its layout, so the bare call still logged a fault for every refusal.
+  const sc = await loadPage(() => requireStudent(user));
   const t = await getTranslator();
   const locale = await getLocale();
 

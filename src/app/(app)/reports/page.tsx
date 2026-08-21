@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { monthlyReport } from '@/lib/domain/reports';
 import { currentOrg, orgTimezone } from '@/lib/domain/org';
@@ -23,7 +22,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'reports.read');
   const t = await getTranslator();
   const locale = await getLocale();

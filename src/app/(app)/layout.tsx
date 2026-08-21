@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth/session';
 import { getAdminSession } from '@/lib/auth/admin-session';
-import { requireOrg } from '@/lib/tenant';
+import { requireOrgPage } from '@/lib/page';
 import { csrfTokenFor } from '@/lib/security/csrf';
 import { signFileUrl } from '@/lib/files/storage';
 import { getLocale } from '@/lib/i18n/server';
@@ -32,7 +32,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (user && !user.activeOrgId) redirect('/onboarding');
   if (user?.role === 'STUDENT') redirect('/student');
 
-  const ctx = await requireOrg();
+  // A workspace that was suspended or removed under a live session would
+  // otherwise throw inside the shell and render the crash boundary.
+  const ctx = await requireOrgPage();
 
   const [org, unread, subscription] = await Promise.all([
     prisma.organization.findFirst({

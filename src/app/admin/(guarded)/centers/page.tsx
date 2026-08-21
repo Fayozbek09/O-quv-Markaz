@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireAdmin } from '@/lib/admin';
+import { requireAdminPage } from '@/lib/page';
+
 import { getLocale, getTranslator } from '@/lib/i18n/server';
 import { formatDate } from '@/lib/i18n';
 import { Card } from '@/components/ui/Card';
@@ -23,7 +24,7 @@ export default async function AdminCentersPage({
 }: {
   searchParams: Promise<Search>;
 }) {
-  await requireAdmin();
+  await requireAdminPage();
   const params = await searchParams;
   const t = await getTranslator();
   const locale = await getLocale();

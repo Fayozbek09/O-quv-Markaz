@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { listGroups } from '@/lib/domain/groups';
 import { currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -23,7 +22,7 @@ export default async function GroupsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'groups.read');
   const t = await getTranslator();
   const locale = await getLocale();

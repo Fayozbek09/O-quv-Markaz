@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
+import { requireOrgPage } from '@/lib/page';
 import { currentOrg } from '@/lib/domain/org';
 import { signFileUrl } from '@/lib/files/storage';
 import { getTranslator } from '@/lib/i18n/server';
@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function WorkspaceSettingsPage() {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   const org = await currentOrg(ctx);
 
   return (

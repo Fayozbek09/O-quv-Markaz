@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { listStudents } from '@/lib/domain/students';
 import { planUsage } from '@/lib/domain/plan';
 import { studentListQuerySchema } from '@/lib/validation/schemas';
@@ -23,7 +22,7 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'students.read');
   const t = await getTranslator();
   const raw = await searchParams;

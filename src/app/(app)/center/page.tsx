@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { centerOverview } from '@/lib/domain/roleDashboards';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -19,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CenterDashboardPage() {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   // The owner dashboard puts salaries paid, expenses and the net result on the
   // first screen, so it needs the finance permission rather than the reporting
   // one a receptionist holds for chasing payments.

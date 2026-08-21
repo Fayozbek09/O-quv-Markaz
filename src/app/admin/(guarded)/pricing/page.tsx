@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireAdmin } from '@/lib/admin';
+import { requireAdminPage } from '@/lib/page';
 import { getPricing } from '@/lib/domain/settings';
 import { getTranslator } from '@/lib/i18n/server';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminPricingPage() {
-  await requireAdmin();
+  await requireAdminPage();
   const t = await getTranslator();
   const pricing = await getPricing();
 

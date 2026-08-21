@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireOrg } from '@/lib/tenant';
+import { requireOrgPage } from '@/lib/page';
 import { ROLE_HOME } from '@/lib/rbac';
 
 /**
@@ -7,6 +7,6 @@ import { ROLE_HOME } from '@/lib/rbac';
  * resolved from the session — never from the URL — so this simply forwards.
  */
 export default async function DashboardPage() {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   redirect(ROLE_HOME[ctx.role]);
 }

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { requireStudent } from '@/lib/domain/portal';
+import { loadPage } from '@/lib/page';
 import { csrfTokenFor } from '@/lib/security/csrf';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
 import { AppProviders } from '@/components/providers/AppProviders';
@@ -20,9 +21,11 @@ export default async function PortalLayout({ children }: { children: React.React
   if (!user) redirect('/login');
   if (user.mustChangePassword) redirect('/change-password');
 
-  // Throws 403 for anyone who is not a linked student; the error boundary
-  // renders the standard forbidden page.
-  const student = await requireStudent(user);
+  // Anyone who is not a linked student — a teacher, a receptionist, an owner
+  // who typed the URL — belongs on /forbidden. Left unwrapped, the 403 escaped
+  // to the client boundary, which cannot tell a refusal from a crash and showed
+  // "Something went wrong" with a Try again button that never would.
+  const student = await loadPage(() => requireStudent(user));
 
   const locale = await getLocale();
   const t = await getTranslator();

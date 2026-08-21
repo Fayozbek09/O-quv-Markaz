@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/db';
-import { requireOrg, scope } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { scope } from '@/lib/tenant';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { listHomework } from '@/lib/domain/homework';
 import { orgTimezone } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
 type Search = { groupId?: string; page?: string };
 
 export default async function HomeworkPage({ searchParams }: { searchParams: Promise<Search> }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'homework.read');
 
   const params = await searchParams;

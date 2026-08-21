@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { yearlyFinance } from '@/lib/domain/finance';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -21,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 type Search = { year?: string };
 
 export default async function FinancePage({ searchParams }: { searchParams: Promise<Search> }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   // Payroll and the net result are the owner's business, not the front desk's.
   requirePagePermission(ctx, 'finance.read');
 

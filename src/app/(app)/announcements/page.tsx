@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { listAnnouncements } from '@/lib/domain/announcements';
 import { listGroups } from '@/lib/domain/groups';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -19,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AnnouncementsPage() {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'notifications.send');
 
   const t = await getTranslator();
