@@ -11,6 +11,7 @@ const ITEMS: Array<[string, TKey]> = [
   ['/admin/centers', 'admin.centers'],
   ['/admin/audit', 'admin.audit'],
   ['/admin/pricing', 'admin.pricing'],
+  ['/admin/security', 'admin.security'],
 ];
 
 export function AdminNav({ logoutOnly = false }: { logoutOnly?: boolean }) {

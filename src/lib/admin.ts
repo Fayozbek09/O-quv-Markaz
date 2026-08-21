@@ -1,4 +1,5 @@
 import { prisma } from './db';
+import { monthBounds } from './domain/time';
 import { Forbidden, Unauthorized } from './errors';
 import { getAdminSession, type AdminSessionUser } from './auth/admin-session';
 import { getSessionUser } from './auth/session';
@@ -38,6 +39,21 @@ export async function requireAdmin(): Promise<AdminContext> {
     }
     throw Unauthorized();
   }
+
+  // A session that has passed the password but not the code reaches the
+  // challenge screen and nothing else. Enforcing it here rather than only in
+  // the layout means the API is closed too — a redirect governs a browser, not
+  // a script holding the cookie.
+  if (admin.awaitingSecondFactor) {
+    await audit({
+      actorAdminId: admin.adminId,
+      action: 'admin.access.denied',
+      outcome: 'denied',
+      meta: { reason: 'second_factor_required' },
+    });
+    throw Forbidden('admin.twoFactorRequired');
+  }
+
   return {
     adminId: admin.adminId,
     sessionId: admin.sessionId,
@@ -84,14 +100,28 @@ export async function auditAdmin(input: {
 }
 
 /** Platform-wide counters for the admin dashboard. */
+/**
+ * The platform bills and reports in Tashkent time, like every centre. Taking a
+ * month boundary in UTC would drop the payments made between midnight and 05:00
+ * local on the first of the month out of that month's figure.
+ */
+const PLATFORM_TIMEZONE = 'Asia/Tashkent';
+
 export async function platformStats() {
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PLATFORM_TIMEZONE,
+    year: 'numeric',
+    month: 'numeric',
+  }).formatToParts(now);
+  const localYear = Number(parts.find((p) => p.type === 'year')?.value);
+  const localMonth = Number(parts.find((p) => p.type === 'month')?.value);
+  const [monthStart] = monthBounds(localYear, localMonth, PLATFORM_TIMEZONE);
+  const [yearStart] = monthBounds(localYear, 1, PLATFORM_TIMEZONE);
 
   const [
     centers, activeCenters, suspendedCenters, teachers, students, groups, lessons,
-    revenue, registrations30d, byStatus, mrrRows, monthCollected,
+    revenue, registrations30d, byStatus, mrrRows, monthCollected, yearCollected,
   ] = await Promise.all([
     prisma.organization.count({ where: { deletedAt: null } }),
     prisma.organization.count({ where: { deletedAt: null, status: 'ACTIVE' } }),
@@ -119,6 +149,10 @@ export async function platformStats() {
       _sum: { amountMinor: true },
       where: { status: 'PAID', paidAt: { gte: monthStart } },
     }),
+    prisma.subscriptionPayment.aggregate({
+      _sum: { amountMinor: true },
+      where: { status: 'PAID', paidAt: { gte: yearStart } },
+    }),
   ]);
 
   const count = (status: string) =>
@@ -144,6 +178,7 @@ export async function platformStats() {
     },
     mrrMinor: mrrRows._sum.amountMinor ?? 0n,
     monthCollectedMinor: monthCollected._sum.amountMinor ?? 0n,
+    yearCollectedMinor: yearCollected._sum.amountMinor ?? 0n,
   };
 }
 

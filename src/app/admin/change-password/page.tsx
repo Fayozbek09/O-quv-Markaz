@@ -14,6 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AdminChangePasswordPage() {
   const admin = await getAdminSession();
   if (!admin) redirect('/admin/login');
+  if (admin.awaitingSecondFactor) redirect('/admin/2fa');
 
   return (
     <CsrfProvider token={csrfTokenFor(admin.csrfSecret)}>

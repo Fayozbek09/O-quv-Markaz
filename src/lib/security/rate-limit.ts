@@ -17,6 +17,13 @@ export const RATE_RULES = {
   // per-account lockout on top of it (see api/admin/login).
   'admin:login:username': { limit: 5, windowMs: 15 * 60_000 },
   'admin:login:ip': { limit: 10, windowMs: 15 * 60_000 },
+  /*
+   * A six-digit code is a million guesses, and the drift window makes three of
+   * them live at once. Ten attempts per five minutes keeps the search well
+   * beyond reach while leaving room for a phone whose clock has slipped.
+   */
+  'admin:2fa:account': { limit: 10, windowMs: 5 * 60_000 },
+  'admin:2fa:ip': { limit: 20, windowMs: 5 * 60_000 },
   'auth:login:ip': { limit: 30, windowMs: 15 * 60_000 },
   'auth:reset:identifier': { limit: 3, windowMs: 60 * 60_000 },
   'auth:register:ip': { limit: 10, windowMs: 60 * 60_000 },

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { prisma } from '@/lib/db';
 import { getAdminSession } from '@/lib/auth/admin-session';
 import { csrfTokenFor } from '@/lib/security/csrf';
 import { getTranslator } from '@/lib/i18n/server';
@@ -16,9 +17,20 @@ import { AdminNav } from './AdminNav';
 export default async function AdminGuardedLayout({ children }: { children: React.ReactNode }) {
   const admin = await getAdminSession();
   if (!admin) redirect('/admin/login');
+  // Password accepted, code still owed: the challenge is the only door open.
+  if (admin.awaitingSecondFactor) redirect('/admin/2fa');
   if (admin.mustChangePassword) redirect('/admin/change-password');
 
   const t = await getTranslator();
+
+  // The banner names the centre being viewed. Without it the warning says an
+  // override is running but not over whom, which is the part that matters.
+  const impersonated = admin.impersonatingOrgId
+    ? await prisma.organization.findUnique({
+        where: { id: admin.impersonatingOrgId },
+        select: { name: true },
+      })
+    : null;
 
   return (
     <CsrfProvider token={csrfTokenFor(admin.csrfSecret)}>
@@ -38,7 +50,7 @@ export default async function AdminGuardedLayout({ children }: { children: React
 
         {admin.impersonatingOrgId && (
           <div className="bg-danger-600 px-4 py-2 text-[13px] font-semibold text-white">
-            {t('admin.impersonating', { center: '—' })}{' '}
+            {t('admin.impersonating', { center: impersonated?.name ?? '' })}{' '}
             <Link href="/center" className="underline">
               {t('admin.viewCenter')}
             </Link>

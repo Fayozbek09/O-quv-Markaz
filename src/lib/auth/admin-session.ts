@@ -25,6 +25,10 @@ export type AdminSessionUser = {
   username: string;
   fullName: string;
   mustChangePassword: boolean;
+  /** True once this session has satisfied the second factor, or none is enrolled. */
+  secondFactorOk: boolean;
+  /** True when the account has TOTP enrolled and this session has not passed it. */
+  awaitingSecondFactor: boolean;
   /** Non-null while the admin is viewing a centre through the override path. */
   impersonatingOrgId: string | null;
   impersonationStartedAt: Date | null;
@@ -115,6 +119,9 @@ export const getAdminSession = cache(async (): Promise<AdminSessionUser | null> 
     });
   }
 
+  const totpEnrolled = Boolean(session.admin.totpEnabledAt && session.admin.totpSecret);
+  const secondFactorOk = !totpEnrolled || session.secondFactorAt !== null;
+
   return {
     sessionId: session.id,
     csrfSecret: session.csrfSecret,
@@ -122,10 +129,20 @@ export const getAdminSession = cache(async (): Promise<AdminSessionUser | null> 
     username: session.admin.username,
     fullName: session.admin.fullName,
     mustChangePassword: session.admin.mustChangePassword,
+    secondFactorOk,
+    awaitingSecondFactor: totpEnrolled && !secondFactorOk,
     impersonatingOrgId: session.impersonatingOrgId,
     impersonationStartedAt: session.impersonationStartedAt,
   };
 });
+
+/** Marks this session as having passed the second factor. */
+export async function completeSecondFactor(sessionId: string) {
+  await prisma.adminSession.update({
+    where: { id: sessionId },
+    data: { secondFactorAt: new Date() },
+  });
+}
 
 /** Starts an explicit, visible "view as centre" session. */
 export async function startImpersonation(sessionId: string, organizationId: string) {

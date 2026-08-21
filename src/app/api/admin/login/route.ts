@@ -68,9 +68,19 @@ export const POST = publicRoute(async (request: Request) => {
   await createAdminSession(admin.id);
   await audit({ actorAdminId: admin.id, action: 'admin.login', outcome: 'success' });
 
+  // The session exists but carries no second factor yet, so it reaches the
+  // challenge and nothing else. Saying a factor is required is not a
+  // disclosure: the caller has already proved the password.
+  const twoFactorRequired = Boolean(admin.totpEnabledAt && admin.totpSecret);
+
   return json({
     ok: true,
+    twoFactorRequired,
     mustChangePassword: admin.mustChangePassword,
-    redirectTo: admin.mustChangePassword ? '/admin/change-password' : '/admin',
+    redirectTo: twoFactorRequired
+      ? '/admin/2fa'
+      : admin.mustChangePassword
+        ? '/admin/change-password'
+        : '/admin',
   });
 });
