@@ -87,15 +87,21 @@ other.
 #    credentials in this script are not used anywhere else
 npm run db:up
 
-# 2. Install and generate
+# 2. Configuration — the app validates every variable at boot and
+#    refuses to start on a bad one, so do this before installing
+cp .env.example .env
+# then fill in DATABASE_URL and generate the four secrets:
+#   openssl rand -hex 32     (once for each of the four)
+
+# 3. Install and generate
 npm install
 npm run db:generate
 
-# 3. Schema and development data
+# 4. Schema and development data
 npm run db:deploy
 npm run db:seed        # prints the platform-admin password ONCE
 
-# 4. Run
+# 5. Run
 npm run dev            # http://localhost:3000
 ```
 
