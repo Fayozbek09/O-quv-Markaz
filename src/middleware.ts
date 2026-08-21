@@ -7,22 +7,35 @@ import { NextResponse, type NextRequest } from 'next/server';
  */
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/**
+ * Kept in step with lib/security/headers.ts. The middleware cannot import that
+ * module — it would pull the server-only env parser into the edge bundle — so
+ * the challenge host is read from the raw variable here.
+ */
+const CHALLENGE_HOSTS: Record<string, string> = {
+  turnstile: 'https://challenges.cloudflare.com',
+  hcaptcha: 'https://hcaptcha.com https://*.hcaptcha.com',
+  recaptcha: 'https://www.google.com https://www.gstatic.com',
+};
+
 function csp(nonce: string, isProd: boolean): string {
+  const provider = process.env.CAPTCHA_PROVIDER ?? 'none';
+  const challengeHost = provider !== 'none' ? (CHALLENGE_HOSTS[provider] ?? '') : '';
   const scriptSrc = isProd
     ? `'self' 'nonce-${nonce}' 'strict-dynamic'`
     : `'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`;
   return [
     `default-src 'self'`,
-    `script-src ${scriptSrc}`,
+    `script-src ${scriptSrc}${challengeHost ? ` ${challengeHost}` : ''}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob:`,
     `font-src 'self' data:`,
-    `connect-src 'self'${isProd ? '' : ' ws: wss:'}`,
+    `connect-src 'self'${challengeHost ? ` ${challengeHost}` : ''}${isProd ? '' : ' ws: wss:'}`,
     `frame-ancestors 'none'`,
     `form-action 'self'`,
     `base-uri 'none'`,
     `object-src 'none'`,
-    `frame-src 'none'`,
+    `frame-src ${challengeHost || `'none'`}`,
     `worker-src 'self' blob:`,
     isProd ? 'upgrade-insecure-requests' : '',
   ]

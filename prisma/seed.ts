@@ -663,7 +663,7 @@ async function main() {
 
   // ---------------------------------------------------------------- report
   const { printCredentials } = await import('../scripts/create-admin');
-  printCredentials(admin.username, admin.password, admin.rotated);
+  printCredentials(admin.username, admin.password, admin.rotated, admin.mustChangePassword);
 
   console.info(`
 seed complete

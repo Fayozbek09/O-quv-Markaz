@@ -62,11 +62,18 @@ export async function ensurePlatformAdmin(options: { quiet?: boolean } = {}) {
 
   const username =
     process.env.ADMIN_USERNAME?.toLowerCase() ?? existing?.username ?? buildUsername(FULL_NAME);
-  const password = process.env.ADMIN_PASSWORD ?? generatePassword();
+  const chosen = process.env.ADMIN_PASSWORD;
+  const password = chosen ?? generatePassword();
 
-  if (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.length < 16) {
+  if (chosen && chosen.length < 16) {
     throw new Error('ADMIN_PASSWORD must be at least 16 characters');
   }
+
+  // A generated password is a transport secret: it has been through a terminal
+  // and whatever carried it to the person. It gets them in once, then they
+  // choose their own. A password set deliberately through ADMIN_PASSWORD is
+  // already the operator's own choice, so it is not treated as temporary.
+  const mustChangePassword = !chosen;
 
   const passwordHash = await hash(password, ARGON);
 
@@ -77,13 +84,14 @@ export async function ensurePlatformAdmin(options: { quiet?: boolean } = {}) {
           username,
           fullName: FULL_NAME,
           passwordHash,
+          mustChangePassword,
           isActive: true,
           failedAttempts: 0,
           lockedUntil: null,
         },
       })
     : await prisma.platformAdmin.create({
-        data: { username, fullName: FULL_NAME, passwordHash, isActive: true },
+        data: { username, fullName: FULL_NAME, passwordHash, mustChangePassword, isActive: true },
       });
 
   // Rotating the secret must not leave older sessions alive.
@@ -93,12 +101,17 @@ export async function ensurePlatformAdmin(options: { quiet?: boolean } = {}) {
   });
 
   if (!options.quiet) {
-    printCredentials(username, password, Boolean(existing));
+    printCredentials(username, password, Boolean(existing), mustChangePassword);
   }
-  return { username, password, rotated: Boolean(existing) };
+  return { username, password, rotated: Boolean(existing), mustChangePassword };
 }
 
-export function printCredentials(username: string, password: string, rotated: boolean) {
+export function printCredentials(
+  username: string,
+  password: string,
+  rotated: boolean,
+  mustChangePassword = false,
+) {
   console.info(`
 ============================================================
   PLATFORM ADMINISTRATOR ${rotated ? '(rotated)' : '(created)'}
@@ -108,7 +121,11 @@ export function printCredentials(username: string, password: string, rotated: bo
   username:  ${username}
   password:  ${password}
 ------------------------------------------------------------
-  Shown once. Only the Argon2id hash is stored.
+  Shown once. Only the Argon2id hash is stored.${
+    mustChangePassword
+      ? '\n  Temporary: /admin/login will ask for a new password of at\n  least 16 characters before letting you in.'
+      : ''
+  }
   To rotate:  npm run admin:create
   Or from the UI: /admin -> change password
 ============================================================

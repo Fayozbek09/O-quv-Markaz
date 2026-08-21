@@ -8,6 +8,7 @@ import { hashPassword, passwordIssues } from '@/lib/auth/password';
 import { createSession, clientIp } from '@/lib/auth/session';
 import { audit } from '@/lib/security/audit';
 import { enforce } from '@/lib/security/rate-limit';
+import { verifyChallenge } from '@/lib/security/challenge';
 import { BadRequest, Conflict } from '@/lib/errors';
 import { getLocale } from '@/lib/i18n/server';
 import { DB_LOCALE } from '@/lib/i18n/config';
@@ -21,6 +22,19 @@ export const POST = publicRoute(async (request: Request) => {
   await enforce('auth:register:ip', ip ?? 'unknown');
 
   const body = await readJson(request, startSchema);
+
+  // Rate limiting bounds one IP; it does not bound a thousand. This step sends
+  // an SMS, and an SMS has a price.
+  const challenge = await verifyChallenge(body.captchaToken, ip);
+  if (!challenge.ok) {
+    await audit({
+      action: 'auth.register.challenge_failed',
+      outcome: 'denied',
+      meta: { reason: challenge.reason },
+    });
+    throw BadRequest('errors.challengeFailed');
+  }
+
   const isPhone = 'phone' in body;
   const identifier = isPhone ? body.phone : body.email;
 

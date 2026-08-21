@@ -13,8 +13,20 @@ import {
  */
 
 // ------------------------------------------------------------------ auth
-export const startPhoneAuthSchema = z.object({ phone: phoneSchema }).strict();
-export const startEmailAuthSchema = z.object({ email: emailSchema }).strict();
+/**
+ * The human-verification token, when a challenge provider is configured. It is
+ * optional in the schema because `CAPTCHA_PROVIDER=none` is a supported way to
+ * run; the route decides whether an absent token is acceptable, so a client
+ * cannot skip the check by omitting the field.
+ */
+const captchaTokenSchema = z.string().max(4096).optional();
+
+export const startPhoneAuthSchema = z
+  .object({ phone: phoneSchema, captchaToken: captchaTokenSchema })
+  .strict();
+export const startEmailAuthSchema = z
+  .object({ email: emailSchema, captchaToken: captchaTokenSchema })
+  .strict();
 
 export const verifyOtpSchema = z
   .object({
@@ -45,7 +57,7 @@ export const loginSchema = z
   .strict();
 
 export const forgotPasswordSchema = z
-  .object({ identifier: z.string().trim().min(3).max(320) })
+  .object({ identifier: z.string().trim().min(3).max(320), captchaToken: captchaTokenSchema })
   .strict();
 
 export const resetPasswordSchema = z
@@ -594,6 +606,28 @@ export const adminLoginSchema = z
     username: z.string().trim().min(3).max(64),
     password: z.string().min(1).max(200),
   })
+  .strict();
+
+/** A six-digit TOTP code, as typed — spaces the app inserts are tolerated. */
+const totpCodeSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.replace(/\s/g, ''))
+  .pipe(z.string().regex(/^\d{6}$/, 'admin.twoFactorBadCode'));
+
+export const adminTotpEnrolSchema = z.object({ code: totpCodeSchema }).strict();
+
+/**
+ * The challenge takes either a TOTP code or a recovery code, so the shape is
+ * looser than enrolment's — the route decides which it is.
+ */
+export const adminTotpChallengeSchema = z
+  .object({ code: z.string().trim().min(6).max(20) })
+  .strict();
+
+/** Turning the factor off costs the password as well as a live code. */
+export const adminTotpVerifySchema = z
+  .object({ code: totpCodeSchema, password: z.string().min(1).max(200) })
   .strict();
 
 export const adminCenterCreateSchema = z

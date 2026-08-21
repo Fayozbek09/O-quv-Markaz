@@ -6,6 +6,7 @@ import { normalizePhone } from '@/lib/validation/common';
 import { requestOtp } from '@/lib/auth/otp';
 import { clientIp } from '@/lib/auth/session';
 import { enforce } from '@/lib/security/rate-limit';
+import { verifyChallenge } from '@/lib/security/challenge';
 import { audit } from '@/lib/security/audit';
 import { getLocale } from '@/lib/i18n/server';
 
@@ -13,6 +14,18 @@ export const POST = publicRoute(async (request: Request) => {
   const hdrs = await headers();
   const ip = clientIp(hdrs);
   const body = await readJson(request, forgotPasswordSchema);
+
+  const challenge = await verifyChallenge(body.captchaToken, ip);
+  if (!challenge.ok) {
+    await audit({
+      action: 'auth.reset.challenge_failed',
+      outcome: 'denied',
+      meta: { reason: challenge.reason },
+    });
+    // Same shape as every other answer from this endpoint: whether a challenge
+    // failed or an account is unknown must not be distinguishable.
+    return json({ sent: true });
+  }
 
   const identifier = body.identifier.trim();
   const asPhone = normalizePhone(identifier);
