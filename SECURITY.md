@@ -68,7 +68,7 @@ an SMS gateway. This is gated on `NODE_ENV !== 'production'`.
 ### Sessions
 
 - Opaque 256-bit token; only its SHA-256 is stored.
-- Cookie: `__Host-ustozly_session`, `HttpOnly`, `Secure` (production),
+- Cookie: `__Host-omarkaz_session`, `HttpOnly`, `Secure` (production),
   `SameSite=Lax`, `Path=/`, no `Domain`.
 - Sliding 7-day idle window inside a hard 30-day ceiling.
 - A new session row on every login — session fixation has nothing to fix.
@@ -127,6 +127,31 @@ but `createGrade` still checks that the group is one they teach; `listHomework`
 adds `group: { teacherId: ctx.memberId }` to the query rather than filtering in
 the UI. The same is true of `salary.read`: the salaries endpoint returns one
 line — their own — when the caller is a teacher.
+
+The rule is carried by two helpers in `lib/tenant.ts`, and they are the only
+correct way to express it:
+
+- `teacherScope(ctx)` for anything owned through a `teacherId` column — groups,
+  lessons, and attendance through its lesson;
+- `studentTeacherScope(ctx)` for students, which hang off a teacher through
+  their group membership rather than a column of their own.
+
+Both return an empty fragment for staff who may see the whole centre, so a call
+site spreads one unconditionally and the rule applies to exactly the roles it
+should. They are applied in `listStudents`, `getStudent`, `listGroups`,
+`getGroup`, `listLessons`, `getLesson`, `updateLesson`, `setLessonStatus`,
+`deleteLesson`, `markAttendance` and `attendanceSummary` — reads *and* writes:
+without them a teacher could mark a register for, or cancel, a class they do not
+teach.
+
+**A page that runs its own query must scope it too.** Several did not, and the
+domain fix did not reach them: the calendar's group filter, the attendance
+lesson picker and a group page's "add student" list were each built from an
+inline `prisma` call filtered by organization alone, so a teacher was sent every
+class and every student in the centre to populate controls they could not use.
+`tests/http/teacher-pages.test.ts` signs in as a real teacher and reads the
+rendered markup, because a leak that lives in a page is invisible to a test that
+only calls the API.
 
 **Missing rows return 404, not 403.** A 403 would confirm that an id exists,
 which is itself a disclosure.
@@ -399,20 +424,61 @@ the database password.
 
 ---
 
+## 16a. Second factor for the platform administrator
+
+The platform account can reach every centre's data, so it is the one account
+where a password on its own is not enough. TOTP (RFC 6238) is available at
+`/admin/security`, and once enrolled:
+
+- a session that has passed the password but not the code reaches the challenge
+  screen **and nothing else** — enforced in `requireAdmin()`, not only in a
+  layout redirect, so the API is closed to it too;
+- a code is burned when used, so one seen over a shoulder cannot be replayed
+  inside its own thirty-second window;
+- eight single-use recovery codes are issued at enrolment, stored as Argon2id
+  hashes, for the phone that is lost;
+- turning it off costs the password *and* a live code, and revokes every
+  session.
+
+Centre roles are deliberately not covered. A receptionist locked out of the till
+by a lost phone is a real cost, and their blast radius is one centre.
+
+---
+
 ## 17. Known limitations
 
+- **No second factor for centre roles.** The platform administrator has TOTP
+  (§16a); owners, receptionists, teachers and students sign in with a password
+  alone. A receptionist locked out of the till by a lost phone is a real cost,
+  and their blast radius is one centre — but an owner's is that centre's whole
+  book of business, so this is a considered trade-off rather than a settled one.
 - **Trusted proxy assumption.** IP-based rate limiting reads the left-most hop of
   `X-Forwarded-For`. Behind a proxy that does not strip client-supplied values,
   per-IP limits can be evaded. Per-identifier limits are unaffected. See
   DEPLOYMENT.md.
 - **Application-level tenancy.** Isolation is enforced in the application, not by
-  Postgres row-level security. On Supabase, RLS should be enabled as a second
-  layer — policies are given in DATABASE.md.
+  Postgres row-level security. Enabling GUC-based RLS would mean setting the
+  tenant on the connection for every request, which with a pooled client means
+  wrapping every query in an interactive transaction — and it would not address
+  the threat people usually reach for RLS to solve, since an attacker holding
+  the database credential can set the GUC themselves. What does address that is
+  `scripts/db-harden.sql`: the application connects as a role with
+  `SELECT/INSERT/UPDATE/DELETE` and nothing else — no `CREATE`, no `TRUNCATE`,
+  no ownership — so an injection cannot drop a table. On Supabase, where the
+  client connects per-user, RLS is cheap and the policies are in DATABASE.md.
 - **Rate limiting is per-window, not token-bucket.** A burst at a window boundary
   can briefly exceed the nominal rate.
-- **No CAPTCHA.** Registration is rate limited per IP but not challenged.
+- **No CAPTCHA by default.** A challenge is now supported on registration and
+  password reset (`CAPTCHA_PROVIDER` — Turnstile, hCaptcha or reCAPTCHA,
+  verified server-side, with the CSP widened only for the provider actually
+  configured). It ships as `none`, which the production preflight warns about
+  at boot: rate limiting bounds one IP, not a thousand, and both endpoints send
+  an SMS that costs money.
 - **The `manual` payment provider cannot complete a purchase.** This is
-  deliberate; a real provider must be configured before charging anyone.
+  deliberate; a real provider must be configured before charging anyone. Payme
+  and Click are both implemented against their real protocols — Payme's JSON-RPC
+  state machine in full — and the preflight refuses to start if either is named
+  without its credentials.
 - **Dependency pinning via `overrides`.** `sharp`, `postcss` and `deepmerge-ts`
   are forced to patched versions because framework packages ship older copies.
   Re-check these after every framework upgrade: an override can silently hold a
@@ -422,7 +488,7 @@ the database password.
 
 ## 18. Test coverage of these claims
 
-**498 automated tests across 33 files**, plus 35 Playwright browser tests. Every
+**637 automated tests across 42 files**, plus 82 Playwright browser tests. Every
 claim above is backed by at least one of them. The counts below are the numbers
 the runner reports, not estimates.
 
@@ -433,14 +499,22 @@ the runner reports, not estimates.
 | File uploads, magic bytes, path traversal, signed URLs | `tests/security/uploads.test.ts` | 25 |
 | Cross-tenant access — homework, grades, courses, staff, payroll, expenses | `tests/security/tenant-isolation-extended.test.ts` | 19 |
 | Server-side permission enforcement per role | `tests/security/rbac-enforcement.test.ts` | 23 |
-| Webhook signatures (Payme, Click), amounts, link tokens | `tests/security/webhooks.test.ts` | 28 |
+| Row-level scoping: a teacher sees only their own classes | `tests/security/teacher-scope.test.ts` | 13 |
+| Webhook signatures (Payme, Click), amounts, link tokens, reply envelopes | `tests/security/webhooks.test.ts` | 36 |
+| Payme merchant protocol: state machine, retries, timeouts, double payment | `tests/security/payme-merchant.test.ts` | 29 |
+| TOTP, including the RFC 6238 vectors and replay of a used step | `tests/security/totp.test.ts` | 21 |
+| Second factor over HTTP: a stolen password reaches nothing | `tests/http/admin-2fa.test.ts` | 12 |
+| Human-verification challenge: an outage is a refusal, not an approval | `tests/security/challenge.test.ts` | 8 |
+| Production preflight: the process refuses to start misconfigured | `tests/unit/preflight.test.ts` | 17 |
 | Student portal self-scoping | `tests/security/portal.test.ts` | 12 |
 | OTP issuance, verification and throttling | `tests/security/otp.test.ts` | 12 |
 | Reminder consent and rate limiting | `tests/security/reminders.test.ts` | 8 |
-| Every staff page names the permission it needs | `tests/security/page-guards.test.ts` | 30 |
+| Every staff page names a permission the wrong role lacks | `tests/security/page-guards.test.ts` | 36 |
 | Log redaction | `tests/security/logging.test.ts` | 3 |
 | SMS delivery: the code never reaches a log | `tests/security/sms.test.ts` | 9 |
-| HTTP auth, CSRF, cookies, IDOR, throttling | `tests/http/auth-http.test.ts` | 35 |
+| HTTP auth, CSRF, cookies, IDOR, throttling, export scoping | `tests/http/auth-http.test.ts` | 43 |
+| Rendered pages leak no other teacher's class or students | `tests/http/teacher-pages.test.ts` | 8 |
+| Closing an account keeps the centre's books | `tests/http/account-closure.test.ts` | 5 |
 | Admin/centre boundary, role routing, impersonation audit | `tests/http/admin-http.test.ts` | 18 |
 | Cross-tenant file access, avatar and attachment uploads | `tests/http/files-http.test.ts` | 18 |
 | Headers, CORS, roles, bundle secrets | `tests/http/headers-http.test.ts` | 17 |
@@ -448,16 +522,20 @@ the runner reports, not estimates.
 | Permission matrix and override filtering | `tests/unit/rbac.test.ts` | 20 |
 | Subscription state machine | `tests/unit/subscription.test.ts` | 12 |
 | Username and password generation | `tests/unit/credentials.test.ts` | 10 |
-| **Security-focused total** | | **356** |
+| **Security-focused total** | | **491** |
 
 Supporting layers: 50 unit tests (money, dates, i18n, CSV, phone, timezones) and
 92 integration tests (students, lessons and attendance, scheduling conflicts,
 the payment ledger, staff provisioning, announcements and the subscription
-lifecycle). **498 in total.**
+lifecycle), and 4 that assert the old product name is gone from the tree.
+**637 in total.**
 
-The browser suite (`npm run e2e`) covers the landing page, the login flow for
-all four centre roles, the admin boundary, per-role page access, an announcement
-posted by an owner and read by the student it was addressed to, and a
+The browser suite (`npm run e2e`, 82 tests) covers the landing page, the login
+flow for all four centre roles, the admin boundary, per-role page access, an
+announcement posted by an owner and read by the student it was addressed to, the
+public footer and its contact links, every role's own area at six viewport
+widths from 1920px down to 360px, an empty browser console on every screen, and
+a
 cross-tenant URL attempt — in a real browser, which is also the only place the
 `__Host-` cookie rules are genuinely enforced.
 

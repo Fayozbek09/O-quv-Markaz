@@ -76,7 +76,7 @@ A read is the same minus steps for CSRF.
 |---|---|---|
 | Session | `sessions` table, opaque token in a cookie | Server-side revocation; a stolen cookie dies the moment the row is revoked |
 | CSRF secret | `sessions.csrfSecret`, token derived per session | Double-submit without a second cookie |
-| Locale | `ustozly_locale` cookie + `profiles.locale` | The cookie is read during SSR so the first paint is already correct |
+| Locale | `omarkaz_locale` cookie + `profiles.locale` | The cookie is read during SSR so the first paint is already correct |
 | Rate limits | `rate_limit_counters` table | Survives restarts and holds across processes |
 | Active workspace | `sessions.activeOrgId` | Switching workspaces cannot be done from the client |
 | Files | Filesystem or S3, never the database | Blobs do not belong in a row; access goes through a signed, checked route |

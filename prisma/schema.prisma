@@ -392,6 +392,7 @@ model Organization {
   notifications        Notification[]
   subscription         Subscription?
   billing              BillingIntent[]
+  paymeTransactions    PaymeTransaction[]
   subscriptionPayments SubscriptionPayment[]
   messages             OutboundMessage[]
   impersonations       AdminSession[]
@@ -542,6 +543,9 @@ model Group {
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
+  /// A teacher's own classes. Every student, group and roster query a teacher
+  /// makes is filtered through this column.
+  @@index([organizationId, teacherId])
   @@map("groups")
 }
 
@@ -588,6 +592,8 @@ model Lesson {
   @@unique([groupId, startsAt])
   @@index([organizationId, startsAt])
   @@index([organizationId, groupId, startsAt])
+  /// A teacher's timetable, and the attendance picker behind it.
+  @@index([organizationId, teacherId, startsAt])
   @@map("lessons")
 }
 
@@ -753,6 +759,44 @@ model OutboundMessage {
   @@map("outbound_messages")
 }
 
+/// A Payme merchant transaction.
+///
+/// Payme does not post a single "paid" callback: it drives a state machine over
+/// JSON-RPC — CheckPerformTransaction, CreateTransaction, PerformTransaction,
+/// CancelTransaction, CheckTransaction — and expects the merchant to remember
+/// where each transaction got to and to answer identically when a call is
+/// repeated. Without this row there is nothing to answer CheckTransaction with,
+/// and a retried PerformTransaction would settle twice.
+///
+/// Times are stored as milliseconds since the epoch because that is the unit
+/// Payme sends and the unit it expects back.
+model PaymeTransaction {
+  id             String   @id @default(uuid()) @db.Uuid
+  /// Payme's own transaction id, unique on their side and on ours.
+  paymeId        String   @unique @db.VarChar(64)
+  intentId       String   @db.Uuid
+  organizationId String   @db.Uuid
+  amountMinor    BigInt
+  /// 1 created · 2 performed · -1 cancelled before perform · -2 cancelled after
+  state          Int      @default(1)
+  /// Payme's cancellation reason code, when cancelled.
+  reason         Int?
+  /// The `time` Payme sent on CreateTransaction.
+  paymeTime      BigInt
+  createTime     BigInt
+  performTime    BigInt   @default(0)
+  cancelTime     BigInt   @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  intent       BillingIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([intentId])
+  @@index([organizationId, state])
+  @@map("payme_transactions")
+}
+
 model WebhookEvent {
   id          String    @id @default(uuid()) @db.Uuid
   provider    String    @db.VarChar(40)
@@ -907,7 +951,8 @@ model BillingIntent {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paymeTransactions PaymeTransaction[]
 
   @@index([organizationId, status])
   @@map("billing_intents")
@@ -986,6 +1031,21 @@ model PlatformAdmin {
   lastLoginAt        DateTime?
   failedAttempts     Int       @default(0)
   lockedUntil        DateTime?
+
+  /// TOTP second factor. The secret is stored because verifying a code needs
+  /// it — there is no hash that would still produce the next code — so it is
+  /// the one credential on this row that is not one-way, and it is written and
+  /// read nowhere but the enrolment and verification paths.
+  totpSecret         String?   @db.VarChar(64)
+  /// Null until enrolment is confirmed with a working code. A half-finished
+  /// enrolment must never lock anyone out.
+  totpEnabledAt      DateTime?
+  /// The last time step accepted. A TOTP code is valid for thirty seconds, so
+  /// without this a shoulder-surfed code is reusable inside that window.
+  totpLastStep       Int?
+  /// Argon2id hashes of single-use recovery codes, for a lost phone.
+  totpRecoveryHashes Json      @default("[]")
+
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -1005,6 +1065,11 @@ model AdminSession {
   /// Non-null while the admin is viewing a centre through the override path.
   impersonatingOrgId     String?   @db.Uuid
   impersonationStartedAt DateTime?
+  /// Null until the second factor has been satisfied on this session. A
+  /// session that has passed the password but not the code can reach the
+  /// challenge screen and nothing else, so a stolen password alone is not a
+  /// way in.
+  secondFactorAt         DateTime?
   createdAt              DateTime  @default(now())
   lastSeenAt             DateTime  @default(now())
   expiresAt              DateTime

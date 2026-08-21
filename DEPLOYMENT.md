@@ -46,19 +46,74 @@ npm run db:deploy        # applies migrations, does not create them
 
 Do **not** run `db:seed` in production.
 
-Give the application role the minimum it needs:
+### Least privilege
 
-```sql
-CREATE ROLE ustozly_app LOGIN PASSWORD '...';
-GRANT CONNECT ON DATABASE ustozly TO ustozly_app;
-GRANT USAGE ON SCHEMA public TO ustozly_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ustozly_app;
+Run `scripts/db-harden.sql` once, as the database owner, **after** the
+migrations:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -v app_role=oquv_markaz_app \
+  -v app_password="$(openssl rand -base64 32)" \
+  -f scripts/db-harden.sql
 ```
 
-Migrations should run as a separate, more privileged role.
+It creates the role the application connects as and gives it exactly
+`SELECT, INSERT, UPDATE, DELETE` — no `CREATE`, no `TRUNCATE`, no ownership.
+The application never issues DDL, so it loses nothing; what it gains is that an
+injection or a compromised process cannot drop a table. The script also sets a
+30-second `statement_timeout`, a 60-second idle-in-transaction timeout and a
+connection cap, so one bad query cannot starve the pool.
 
-If you are on Supabase, also enable row-level security — policies are in
-[DATABASE.md](DATABASE.md).
+Re-running is safe, and `ALTER DEFAULT PRIVILEGES` means the next migration's
+tables inherit the same grants rather than arriving unreadable.
+
+It ends by printing what it did. Confirm:
+
+```sql
+SELECT has_table_privilege('oquv_markaz_app','students','TRUNCATE');  -- f
+SELECT has_schema_privilege('oquv_markaz_app','public','CREATE');     -- f
+```
+
+**Migrations run as the owner, not as this role.** Keep the two connection
+strings separate: the app's in `DATABASE_URL`, the owner's used only by
+`db:deploy`.
+
+### Row-level security
+
+RLS is **not** enabled, and the honest reason is worth stating rather than
+leaving as a checkbox.
+
+Tenant isolation here is enforced in the application: every query goes through
+`scope.*` helpers that carry `organizationId`, a teacher's rows are narrowed
+further by their membership id, and roughly a hundred tests assert that a
+crafted id from another centre answers 404. A GUC-based RLS policy would put a
+second wall behind that — but only if the application sets the tenant on the
+connection for every request, which with a pooled client means wrapping every
+query in an interactive transaction. That is a large change to the hot path,
+and it would not address the threat people usually reach for RLS to solve: an
+attacker holding the database credential can set the GUC themselves.
+
+What does address that threat is the restricted role above, network isolation,
+and backups you have actually restored.
+
+If you are on a platform where RLS is cheap — Supabase, where the client
+connects per-user — the policies are in [DATABASE.md](DATABASE.md).
+
+### Backups
+
+`scripts/db-backup.sh` takes the dump **and restores it into a scratch database
+to count the rows**, because a backup nobody has restored is a hope rather than
+a backup:
+
+```bash
+DATABASE_URL="postgresql://..." BACKUP_DIR=/var/backups/oquv-markaz \
+  ./scripts/db-backup.sh
+```
+
+Schedule it daily. It fails loudly on a suspiciously small dump, prunes anything
+older than `KEEP_DAYS` (30 by default), and `--no-verify` skips the restore
+check for the rare case where there is no room for a second copy.
 
 ---
 
@@ -93,14 +148,14 @@ limits. Per-identifier limits are unaffected either way.
 
 ```ini
 [Unit]
-Description=Ustozly
+Description=O'quv Markaz
 After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=ustozly
-WorkingDirectory=/srv/ustozly
-EnvironmentFile=/srv/ustozly/.env
+User=oquvmarkaz
+WorkingDirectory=/srv/oquv-markaz
+EnvironmentFile=/srv/oquv-markaz/.env
 ExecStart=/usr/bin/npm start
 Restart=on-failure
 
@@ -108,7 +163,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/ustozly/storage
+ReadWritePaths=/srv/oquv-markaz/storage
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
@@ -218,12 +273,40 @@ parsing anything.
 operator until a real provider is configured. This is deliberate: a stub that
 faked success would let anyone self-upgrade.
 
-For Payme you need a merchant account, `PAYME_MERCHANT_ID` and
-`PAYME_SECRET_KEY`, and the merchant endpoint configured to
-`${APP_URL}/api/billing/webhook`. The adapter in
-`src/lib/payments/providers/payme.ts` implements credential verification,
-idempotency and amount reconciliation; the JSON-RPC methods that need a live
-merchant cabinet are marked and left to be completed.
+#### Payme
+
+You need a merchant account, `PAYME_MERCHANT_ID` and `PAYME_SECRET_KEY`, and the
+**Endpoint** in the merchant cabinet set to `${APP_URL}/api/billing/webhook`.
+
+Payme is not a notify-once gateway. It drives a JSON-RPC state machine against
+your endpoint and expects the merchant to hold the state and to answer a
+repeated call *identically*. `src/lib/payments/payme-merchant.ts` implements the
+whole method set:
+
+| Method | Behaviour |
+|---|---|
+| `CheckPerformTransaction` | Confirms the order exists, is unpaid, and that the quoted amount matches the intent |
+| `CreateTransaction` | Reserves it; a repeated call returns the same transaction rather than a second reservation |
+| `PerformTransaction` | Settles once and extends the term; a retry replays the same answer; anything past the 12-hour window is cancelled with reason 4 instead |
+| `CancelTransaction` | State −1 before settlement, −2 after, and the charge is marked refunded |
+| `CheckTransaction` | The full state record, including `reason` |
+| `GetStatement` | Reconciliation over a time window |
+
+Two properties are worth knowing because they are what certification checks:
+**every reply is HTTP 200**, errors included — a non-200 is read as a transport
+fault and retried forever — and **the amount is never taken from the request**;
+it is compared against the intent the centre actually created, and a mismatch is
+`-31001`. Amounts arrive in **tiyin** and the ledger counts so'm, so everything
+crossing the boundary is converted.
+
+Authentication is `Basic base64("Paycom:$PAYME_SECRET_KEY")`, compared in
+constant time. A wrong or missing credential is `-32504`.
+
+29 tests in `tests/security/payme-merchant.test.ts` play the gateway against
+this endpoint, including the retries, the timeout and the double-payment
+attempt.
+
+#### Click
 
 For Click you need a shop in the Click merchant cabinet, `CLICK_MERCHANT_ID`
 (the `service_id` Click issues) and `CLICK_SECRET_KEY`, with both the Prepare
@@ -236,8 +319,16 @@ term. The two phases are stored under distinct event ids so replaying either is
 a no-op. Click quotes amounts in so'm; the adapter converts to tiyin, and the
 webhook route still refuses any amount that disagrees with the stored intent.
 
+Click also reads the *reply*, not the HTTP status: it looks for `error`, and on
+Prepare it stores `merchant_prepare_id` to send back on Complete, where it forms
+part of the next signature. Answering `{ ok: true }` is not an acknowledgement
+to Click — the payment stays unconfirmed on their side while the ledger here
+says it settled — so each adapter renders its own envelope.
+
 Whichever provider is configured, no browser response ever activates a plan —
-only a signed callback does.
+only a signed callback does. In production the process refuses to start if a
+provider is named without its credentials, so a half-configured gateway cannot
+reach a paying customer.
 
 ---
 
@@ -290,21 +381,66 @@ from Settings → Security.
 
 ## 7. Pre-launch checklist
 
+Most of the first section is enforced by the application itself. In production
+the process runs a **preflight** at boot (`src/lib/env.ts`) and **refuses to
+start** if any of it is wrong — a server that will not start is a deployment
+that gets fixed, while one that starts wrong is an incident. It prints the
+offending keys and the reason, never a value.
+
+`SKIP_ENV_PREFLIGHT=1` exists for the test harnesses, which run the production
+build against test configuration deliberately. Setting it on a server that faces
+real people defeats the check.
+
+### Enforced at boot — the process will not start otherwise
+
 - [ ] `NODE_ENV=production`
-- [ ] All four secrets generated fresh, none from `.env.example`
-- [ ] `APP_URL` exactly matches the public origin
+- [ ] All four secrets generated fresh (`openssl rand -hex 32`), none from
+      `.env.example`, none repeated
+- [ ] `APP_URL` is `https://` and is not localhost
+- [ ] `SMS_PROVIDER` is a real gateway, with credentials
+- [ ] `EMAIL_PROVIDER` is a real sender
+- [ ] A named payment provider has its merchant credentials
+- [ ] A Telegram bot token, if set, has a webhook secret
+- [ ] A named `CAPTCHA_PROVIDER` has both its keys
+
+### Warned about at boot — deliberate choices, logged so nobody is surprised
+
+- [ ] `PAYMENT_PROVIDER=manual` — no online payment can complete; a platform
+      admin settles each centre by hand
+- [ ] `CAPTCHA_PROVIDER=none` — registration is rate limited but not challenged
+- [ ] `STORAGE_DRIVER=local` — uploads live on this machine's disk
+- [ ] No Telegram bot — reminders are disabled
+
+### Checked by a person
+
 - [ ] TLS terminating; HTTP redirects to HTTPS
 - [ ] `X-Forwarded-For` set by the proxy, not passed through
 - [ ] Database not reachable from the internet
 - [ ] Migrations applied (`npm run db:deploy`)
+- [ ] `scripts/db-harden.sql` run, and the application connecting as the
+      restricted role — verify `can_truncate` is false (§2)
 - [ ] Seed **not** run
 - [ ] Upload directory persistent, writable, not web-served
-- [ ] Backups configured and a restore tested
-- [ ] `npm test` green against a staging database
+- [ ] `scripts/db-backup.sh` scheduled, and its restore check passing
+- [ ] `npm test` and `npm run e2e` green against a staging database
 - [ ] `npm audit` clean (the repo ships `overrides` that keep it at zero)
+- [ ] Platform administrator created (`npm run admin:create`) and the temporary
+      password changed
+- [ ] **Two-step verification switched on for the platform administrator**
+      (`/admin/security`), and the recovery codes stored somewhere that is not
+      the same laptop
 - [ ] Privacy Policy and Terms updated with real contact details
+- [ ] `NEXT_PUBLIC_CONTACT_*` set to the details you actually answer
 - [ ] Data residency table above filled in
 - [ ] Housekeeping job scheduled (`purgeExpiredOtps`, `purgeExpiredRateLimits`)
+- [ ] Subscription job scheduled (`npm run subscriptions:remind`, §11)
+
+### If a payment provider is configured
+
+- [ ] Merchant cabinet points at `https://your-domain/api/billing/webhook`
+- [ ] A real payment taken end to end on staging, and the centre's term extended
+- [ ] The same webhook replayed, and the term **not** extended twice
+- [ ] A cancellation exercised, and the charge shown as refunded
 
 ---
 

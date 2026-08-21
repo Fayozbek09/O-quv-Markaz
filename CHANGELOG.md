@@ -8,6 +8,95 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The Payme Merchant API, in full.** Payme is not a notify-once gateway: it
+  drives a JSON-RPC state machine and expects the merchant to hold the state and
+  to answer a repeated call identically. What existed was the security half —
+  constant-time credential check, amount reconciliation — answering
+  `{ ok: true }` to every method, which Payme reads as no answer at all and
+  retries forever. `lib/payments/payme-merchant.ts` now implements
+  `CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`,
+  `CancelTransaction`, `CheckTransaction` and `GetStatement` against a new
+  `payme_transactions` table, including the 12-hour timeout (cancel with reason
+  4 rather than settle an abandoned charge), idempotent retries, and refusing a
+  second transaction against an order already being paid. Every reply is HTTP
+  200, errors included, because a non-200 is read as a transport fault. 29 tests
+  play the gateway.
+- **Reply envelopes each gateway can actually read.** A correct decision
+  returned in a shape the gateway does not recognise is not an acknowledgement:
+  Click looks for `error`, and on Prepare it keeps `merchant_prepare_id` to send
+  back on Complete, where it forms part of the next signature. Answering
+  `{ ok: true }` left the payment unconfirmed on Click's side while the ledger
+  here said it settled. Each adapter now renders its own reply.
+- **A production preflight.** The process refuses to start if a secret still
+  reads like the one in `.env.example`, if two secrets share a value, if
+  `APP_URL` is not https, if the SMS or e-mail provider is `console`, or if a
+  named payment or challenge provider has no credentials. It prints the
+  offending keys and the reason, never a value. Four deliberate choices —
+  `manual` payments, no challenge, local storage, no Telegram — are warnings
+  logged at boot instead, so nobody discovers them from a customer. It runs from
+  `instrumentation.ts` at server start rather than at module scope, and is
+  skipped during `next build`: compiling is not serving, and a build machine
+  legitimately has no production secrets.
+- **Two-step verification for the platform administrator.** TOTP (RFC 6238),
+  written out rather than pulled in — the algorithm is thirty lines and this is
+  the account that reaches every centre's data. A session that has passed the
+  password but not the code reaches the challenge screen and nothing else,
+  enforced in `requireAdmin()` so the API is closed to it too and not merely
+  redirected. A used step is burned, so a code seen over a shoulder cannot be
+  replayed inside its own window. Eight single-use recovery codes, stored as
+  Argon2id hashes. Turning it off costs the password *and* a live code.
+- **A human-verification challenge** on registration and password reset, the two
+  endpoints that send an SMS and therefore cost money to abuse. Turnstile,
+  hCaptcha or reCAPTCHA, verified server-side; a provider that is slow, broken
+  or unreachable produces a **refusal**, never an approval. Ships as `none`,
+  which the preflight warns about. The CSP is widened only for the provider
+  actually configured.
+- **`scripts/db-harden.sql`** — creates the role the application connects as with
+  `SELECT/INSERT/UPDATE/DELETE` and nothing else: no `CREATE`, no `TRUNCATE`, no
+  ownership, plus a 30-second statement timeout, an idle-in-transaction timeout
+  and a connection cap. The application never issues DDL, so it loses nothing;
+  an injection can no longer drop a table. Idempotent, and verified against a
+  real database — including that `has_table_privilege(..., 'TRUNCATE')` is false.
+- **`scripts/db-backup.sh`** — takes the dump *and restores it into a scratch
+  database to count the rows*, because a backup nobody has restored is a hope
+  rather than a backup. Fails loudly on a suspiciously small dump and prunes by
+  age.
+- Indexes for the teacher-scoped queries, and a deploy checklist reorganised
+  into what the process enforces at boot, what it warns about, and what a person
+  still has to check.
+
+- **The product is now O'QUV MARKAZ.** The rename went past the title bar: the
+  logo mark, the favicon, page metadata, the marketing and auth headers, the
+  privacy policy and terms (which still described a record-keeping tool for
+  private tutors rather than a platform for education centres), the FAQ, the
+  Telegram bot's replies, the CSV template and report filenames, the data-export
+  filename, the locale and OAuth cookie names, the deployment examples and the
+  documentation. `tests/unit/branding.test.ts` walks the repository and fails on
+  any reappearance, with a short allowlist for the local Postgres container and
+  databases — renaming those would mean recreating them for no user-visible
+  gain, and two are load-bearing safety checks.
+- **A real footer.** The contact details used to be three items in a single row
+  of small print, between a copyright notice and two legal links, where they
+  read as decoration. They now have a column of their own in a four-column
+  layout (identity · Platform · Help · Contact) that stacks on a phone, with a
+  legal bar beneath. Phone and e-mail are `tel:` and `mailto:` links, so a tap
+  dials; the landing page gained `#features`, `#pricing` and `#faq` anchors for
+  the Platform and Help columns to point at. A Telegram row appears only when
+  `NEXT_PUBLIC_CONTACT_TELEGRAM` is set — this deployment has no support channel
+  and the footer says nothing rather than linking to one that does not exist.
+- **Responsive coverage as a test, not a claim.** Every role's own area and
+  every public page, at 1920, 1280, 1024, 768, 390 and 360 px, asserting the
+  document never grows wider than the viewport. It found two real faults on the
+  first run (below).
+- **An empty browser console, asserted.** Every screen each of the four roles
+  reaches is loaded with the console and the network watched; an error, a
+  warning or a failed request fails the test.
+- Indexes on `groups(organizationId, teacherId)` and
+  `lessons(organizationId, teacherId, startsAt)`. Teacher scoping made both
+  columns hot on every list a teacher opens, and neither was indexed. Measured
+  on a 1200-student centre: a teacher's student list 12 ms, their timetable
+  3 ms, the owner dashboard 34 ms, a twelve-month finance report 68 ms.
+
 - **Scheduling conflict detection.** A lesson is refused when it overlaps an
   existing one for the same group, the same teacher or the same room. The check
   is a true interval overlap (`newStart < existingEnd && newEnd > existingStart`)
@@ -74,6 +163,132 @@ versioning follows [Semantic Versioning](https://semver.org/).
   nothing.
 
 ### Fixed
+
+#### Row-level scoping for teachers
+
+`students.read`, `groups.read` and `lessons.read` are permissions a teacher
+genuinely needs — they cannot take a register without them — so the permission
+could never be the boundary. The queries were scoped by organization only, and
+a teacher holding them could:
+
+- list every student in the centre and open any profile, with the parent's
+  phone number, the outstanding debt and the full payment history;
+- read any group's roster, including students' phone numbers;
+- see the whole centre's timetable rather than their own;
+- **mark a register for a class they do not teach, and cancel another teacher's
+  lesson** — both write paths, not merely reads.
+
+`teacherScope()` existed in `lib/tenant.ts` for exactly this and was called from
+nowhere; the CHANGELOG entry claiming groups were "filtered by their membership
+id in the query itself" was true of homework, grades and payroll but not of
+students, groups, lessons or attendance. It is now applied in `listStudents`,
+`getStudent`, `listGroups`, `getGroup`, `listLessons`, `getLesson`,
+`updateLesson`, `setLessonStatus`, `deleteLesson`, `markAttendance` and
+`attendanceSummary`, with a new `studentTeacherScope()` for students, which hang
+off a teacher through their group membership rather than a `teacherId` column.
+A row outside a teacher's classes answers 404, the same reply another centre's
+id gets, so the response never confirms the row exists.
+
+#### Pages that scoped nothing
+
+Several pages ran their own inline Prisma query for a dropdown or a picker and
+filtered by organization alone, so the fix above did not reach them. None of it
+was clickable and all of it was readable:
+
+- the calendar's group filter named every class in the centre;
+- the attendance picker listed every lesson that day;
+- a group page shipped the centre's entire student roll to populate an "add
+  student" control a teacher is not permitted to use — that query is now gated
+  on `groups.members`.
+
+#### Other access-control fixes
+
+- **`/reception` served the centre's money to teachers.** The page named
+  `students.read`, which matched its sidebar link and satisfied the existing
+  page-guard test — but its loader reads the day's takings and every debtor with
+  what they owe. The gate is now `payments.read`. The guard test was checking
+  that *a* permission was named; it now checks the named permission is one a
+  teacher does not hold.
+- **`/api/account/export` handed any member the whole tenant.** Billed as
+  "export my data" and reachable by every signed-in account, it returned every
+  student (with parents), group, lesson, attendance row, payment and invoice for
+  any organization the caller belonged to — so a student portal login downloaded
+  the centre. The export is now scoped: a member holding `reports.export` takes
+  the centre, everyone else takes their own rows.
+- **A forced password change was a redirect, not a control.** The layouts sent a
+  temporary-credential account to `/change-password`, but a redirect only
+  governs a browser that follows it; the same session could work the entire API
+  with the issued password indefinitely. `requireOrg()` and `requireStudent()`
+  now refuse until the person picks their own password.
+- **Closing an account destroyed the centre's books.** Deleting an account
+  cascaded the organization row away with every student, payment, invoice, grade
+  and attendance record under it, and deleting the membership rows cascaded into
+  `salary_payments` — so a teacher leaving a *shared* centre erased their payroll
+  history from that centre's accounts. A centre is now closed the way a platform
+  administrator closes one, with `deletedAt`; memberships are marked as left;
+  identifiers are released and the profile scrubbed. Someone who is the last
+  owner of a centre that still has other members is refused rather than leaving
+  it with nobody able to run it.
+- **Password reset could not recover the account it exists for.** It set the new
+  hash but left `mustChangePassword` and `credentialsExpireAt` untouched, so
+  anyone whose issued password lapsed before first use reset it and was still
+  turned away at login. Both now clear, as they already did in
+  `/api/auth/change-password`.
+- **A member of staff opening `/student` got a 500.** The portal layout let
+  `requireStudent`'s 403 escape to the client error boundary, which cannot tell
+  a refusal from a crash: the reader saw "Something went wrong" and a Try again
+  button that could never work. It routes through `loadPage` to `/forbidden`.
+- The platform dashboard's monthly figure took its month boundary in UTC while
+  the rest of the platform bills in Tashkent time, dropping payments made
+  between midnight and 05:00 local on the first of the month. It now uses
+  `monthBounds` like everything else, and reports collected-this-year alongside.
+- The `/admin` impersonation banner printed a literal em dash where the centre's
+  name belongs, warning that an override was running without saying over whom.
+- `npm run admin:create` left `mustChangePassword` untouched, so a generated
+  password stayed valid indefinitely. A generated one is now temporary; a
+  password set deliberately through `ADMIN_PASSWORD` is not.
+- A signature test flipped the last character of an HMAC to a fixed `'0'`, so
+  one run in sixteen tested a *valid* signature and passed for the wrong reason.
+- **A forged-session test had never tested a forged session.** It sent a cookie
+  named `__Host-ustozly_session`; the application reads `__Host-omarkaz_session`.
+  The request therefore carried no session at all, and the 401 it asserted meant
+  "anonymous", not "rejected". The name now comes from the source, and a second
+  test tampers with a *real* token.
+- **The end-to-end harness could test the previous build.** `prepare-e2e.ts`
+  existed to build before `next start` — its own comment explains why the build
+  cannot wait for `globalSetup` — and nothing ever called it. A CSS change was
+  duly tested against the stale build and passed. It is now part of the
+  webServer command.
+- **Cards would not shrink on a phone.** A grid item is `min-width: auto` by
+  default, so a card holding one long unbreakable row widened its column past
+  the viewport and the whole page scrolled sideways, with the `truncate` inside
+  it never getting a chance to act. The teacher and student dashboards — the two
+  the product most expects to be used on a phone — both did this. `.card` now
+  sets `min-width: 0`.
+- The header's call to action fell off a 360px screen once the wordmark grew
+  from `Ustozly` to `O'QUV MARKAZ`. The wordmark now gives way to the mark alone
+  below 380px.
+- Six dead landing-page keys survived the move to flat pricing, one of them
+  reading "Up to 10 active students" — a ceiling this product removed.
+- **A forged-session test had never tested a forged session** — and neither had
+  the payment webhook tests tested a reply any gateway would accept. Both were
+  green.
+- **The test harness could leave a suite depending on the one before it.**
+  `truncateAll()` did not clear `platform_admins`, which has no foreign key to
+  an organization and so was never reached by CASCADE: a suite that created an
+  administrator left it for the next, which then collided on the unique
+  username. The HTTP harness also now runs `prisma migrate deploy` before
+  anything reads the database — adding a migration and forgetting that step
+  surfaced as `column … does not exist` halfway through an unrelated suite.
+- **Refusals were logged as faults.** A page segment renders alongside its
+  layout, so every anonymous or refused request logged
+  `⨯ Error [AppError]: forbidden` with a stack even though the layout's redirect
+  was what the reader actually got — ordinary access-control events filling the
+  server log, where a genuine fault then has somewhere to hide. Pages now take
+  their context through `requireOrgPage()` / `requireAdminPage()` in
+  `lib/page.ts`, which redirect on their own account instead of relying on a
+  layout. The browser suite's server log went from 27 such lines to none, and a
+  page no longer depends on its parent for the refusal.
 
 - A lesson overlapping an existing one was accepted whenever the two did not
   start at the same instant. Found while extending the schedule, and covered by

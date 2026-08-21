@@ -1,6 +1,6 @@
 # Threat model
 
-Scope: the Ustozly web application, its database, its file storage and its three
+Scope: the O'quv Markaz web application, its database, its file storage and its three
 outbound integrations (Telegram, an SMS/email gateway, a payment provider).
 
 Out of scope: the hosting provider's own security, the teacher's device, and

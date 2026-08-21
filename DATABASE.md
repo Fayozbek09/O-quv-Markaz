@@ -182,7 +182,7 @@ Migrations are plain SQL under `prisma/migrations`, reviewable before they run.
 - **Bobur Math Center** — a second teacher with one student, so cross-tenant
   isolation can be checked by hand.
 
-Both use the password `Ustozly2026!`.
+Both use the password `Demo-Markaz-2026!`.
 
 ---
 
