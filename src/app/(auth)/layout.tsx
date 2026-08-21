@@ -17,8 +17,8 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
     <AppProviders locale={locale}>
       <div className="flex min-h-dvh flex-col bg-canvas">
         <header className="flex h-14 items-center justify-between px-4 sm:px-6">
-          <Link href="/" aria-label="Ustozly">
-            <Logo size={26} />
+          <Link href="/" aria-label="O'quv Markaz">
+            <Logo size={26} textClassName="hidden min-[380px]:inline" />
           </Link>
           <LanguageSwitcher compact />
         </header>

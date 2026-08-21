@@ -12,6 +12,13 @@
 export const CONTACT = {
   email: process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'iskandarovfayozbek099@gmail.com',
   phone: process.env.NEXT_PUBLIC_CONTACT_PHONE || '+998995900587',
+  /**
+   * A support handle, without the `@`. Deliberately empty by default: this
+   * deployment has no Telegram support channel, and a footer that links to one
+   * that does not exist is worse than a footer that does not mention it. Set
+   * `NEXT_PUBLIC_CONTACT_TELEGRAM` and the row appears.
+   */
+  telegram: (process.env.NEXT_PUBLIC_CONTACT_TELEGRAM || '').replace(/^@/, ''),
 } as const;
 
 /** `+998995900587` reads as `+998 99 590 05 87`. */
@@ -24,3 +31,5 @@ export function formatPhone(phone: string): string {
 export const CONTACT_PHONE_DISPLAY = formatPhone(CONTACT.phone);
 export const CONTACT_TEL_HREF = `tel:${CONTACT.phone.replace(/\s/g, '')}`;
 export const CONTACT_MAIL_HREF = `mailto:${CONTACT.email}`;
+export const CONTACT_TELEGRAM_HANDLE = CONTACT.telegram ? `@${CONTACT.telegram}` : null;
+export const CONTACT_TELEGRAM_HREF = CONTACT.telegram ? `https://t.me/${CONTACT.telegram}` : null;

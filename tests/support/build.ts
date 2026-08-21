@@ -10,7 +10,7 @@ import path from 'node:path';
  * A sentinel records the newest source timestamp at build time, so a rebuild
  * happens when the code changed and is skipped when it did not.
  */
-const SENTINEL = path.join('.next', '.ustozly-prod-build');
+const SENTINEL = path.join('.next', '.omarkaz-prod-build');
 
 function newestSourceMtime(dir = 'src'): number {
   let newest = 0;

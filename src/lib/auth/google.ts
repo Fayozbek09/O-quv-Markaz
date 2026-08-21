@@ -11,8 +11,8 @@ const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 
-export const GOOGLE_STATE_COOKIE = 'ustozly_oauth_state';
-export const GOOGLE_VERIFIER_COOKIE = 'ustozly_oauth_verifier';
+export const GOOGLE_STATE_COOKIE = 'omarkaz_oauth_state';
+export const GOOGLE_VERIFIER_COOKIE = 'omarkaz_oauth_verifier';
 
 export const redirectUri = () => `${env.APP_URL}/api/auth/google/callback`;
 

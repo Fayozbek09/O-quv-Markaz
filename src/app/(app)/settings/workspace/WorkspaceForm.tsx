@@ -99,7 +99,7 @@ export function WorkspaceForm({
               <TextField label={t('auth.phone')} value={form.phone ?? ''} onChange={(e) => set('phone', e.target.value)} error={fields.phone} type="tel" disabled={!canEdit} />
             </div>
 
-            <TextField label={t('settings.telegramHandle')} value={form.telegramHandle ?? ''} onChange={(e) => set('telegramHandle', e.target.value)} disabled={!canEdit} maxLength={64} placeholder="@ustozly" />
+            <TextField label={t('settings.telegramHandle')} value={form.telegramHandle ?? ''} onChange={(e) => set('telegramHandle', e.target.value)} disabled={!canEdit} maxLength={64} placeholder="@markazingiz" />
 
             <div className="grid gap-3 sm:grid-cols-3">
               <SelectField label={t('settings.currency')} value={form.defaultCurrency} onChange={(e) => set('defaultCurrency', e.target.value as Initial['defaultCurrency'])} disabled={!canEdit}>

@@ -23,11 +23,18 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npx dotenv-cli -e .env.e2e -- next start -p ${PORT}`,
+    /*
+     * `prepare-e2e` builds first, in the same command, and this matters: the
+     * web server is started before globalSetup runs, so a rebuild done in
+     * globalSetup lands in .next *after* `next start` has already read it. The
+     * script existed for this and was never wired up, which is why a CSS change
+     * could be tested against the previous build and pass.
+     */
+    command: `npx tsx scripts/prepare-e2e.ts && npx dotenv-cli -e .env.e2e -- next start -p ${PORT}`,
     url: `${BASE_URL}/login`,
     // Always start fresh: a reused server may hold the previous build.
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 240_000,
     env: { APP_URL: BASE_URL },
   },
 });

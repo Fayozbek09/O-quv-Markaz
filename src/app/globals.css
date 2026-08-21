@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /*
- * Ustozly design tokens.
+ * O'QUV MARKAZ design tokens.
  * The palette is deliberately restrained: one blue for action, one amber for
  * "money owed", one red for destructive. Everything else is neutral, so a
  * dashboard full of numbers stays readable on a cheap laptop screen.
@@ -112,6 +112,16 @@
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-card);
+    /*
+     * A grid or flex item is `min-width: auto` by default, which means it
+     * refuses to shrink below its content. A card holding one long unbreakable
+     * row — a group name next to a room number — therefore widened its column
+     * past the viewport and the whole page scrolled sideways on a phone, with
+     * the `truncate` inside it never getting the chance to act. Cards are the
+     * container every list in this application sits in, so the floor is lifted
+     * here once rather than at each of the pages that would otherwise hit it.
+     */
+    min-width: 0;
   }
 
   .field {

@@ -74,13 +74,13 @@ export async function POST(request: Request) {
   const text = message.text.trim();
   const token = text.startsWith('/start') ? text.slice(6).trim() : text;
   if (!token || token.length > 100) {
-    await sendMessage(BigInt(chatId), 'Ustozly: /start <code>');
+    await sendMessage(BigInt(chatId), "O'quv Markaz: /start <code>");
     return ok();
   }
 
   const redeemed = await redeemLinkToken(token);
   if (!redeemed.ok) {
-    await sendMessage(BigInt(chatId), 'Ustozly: code is invalid or has expired.');
+    await sendMessage(BigInt(chatId), "O'quv Markaz: code is invalid or has expired.");
     return ok();
   }
 
@@ -119,6 +119,6 @@ export async function POST(request: Request) {
     meta: { targetType: redeemed.targetType },
   });
 
-  await sendMessage(BigInt(chatId), 'Ustozly: connected.');
+  await sendMessage(BigInt(chatId), "O'quv Markaz: connected.");
   return ok();
 }

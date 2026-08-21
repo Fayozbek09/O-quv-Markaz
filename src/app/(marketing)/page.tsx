@@ -7,7 +7,7 @@ import { getPricing } from '@/lib/domain/settings';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslator();
-  return { title: `Ustozly — ${t('app.tagline')}`, description: t('landing.heroSubtitle') };
+  return { title: `${t('app.name')} — ${t('app.tagline')}`, description: t('landing.heroSubtitle') };
 }
 
 const FeatureIcon = ({ d }: { d: string }) => (
@@ -79,7 +79,7 @@ export default async function LandingPage() {
               <span className="size-2.5 rounded-full bg-line-strong" />
               <span className="size-2.5 rounded-full bg-line-strong" />
               <span className="size-2.5 rounded-full bg-line-strong" />
-              <span className="ml-2 text-[11px] text-ink-faint">app.ustozly.uz/dashboard</span>
+              <span className="ml-2 text-[11px] text-ink-faint">oquvmarkaz.uz/center</span>
             </div>
             <div className="grid gap-3 p-4 sm:grid-cols-3">
               {[
@@ -118,7 +118,7 @@ export default async function LandingPage() {
       </section>
 
       {/* features */}
-      <section className="border-b border-line">
+      <section id="features" className="border-b border-line">
         <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
           <h2 className="text-2xl font-semibold tracking-tight">{t('landing.featuresTitle')}</h2>
           <div className="mt-8 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
@@ -158,7 +158,7 @@ export default async function LandingPage() {
       </section>
 
       {/* pricing — one flat price, no per-student component */}
-      <section className="border-b border-line">
+      <section id="pricing" className="border-b border-line">
         <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
           <h2 className="text-2xl font-semibold tracking-tight">{t('landing.pricingTitle')}</h2>
 
@@ -197,7 +197,7 @@ export default async function LandingPage() {
       </section>
 
       {/* faq */}
-      <section>
+      <section id="faq">
         <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
           <h2 className="text-2xl font-semibold tracking-tight">{t('landing.faqTitle')}</h2>
           <dl className="mt-6 divide-y divide-line border-y border-line">

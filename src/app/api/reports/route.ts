@@ -24,7 +24,7 @@ export const GET = orgRoute(async (ctx, request) => {
       headers: {
         'content-type': 'text/csv; charset=utf-8',
         // `attachment` plus a fixed filename: the browser never renders this.
-        'content-disposition': `attachment; filename="ustozly-report-${query.year}-${String(query.month).padStart(2, '0')}.csv"`,
+        'content-disposition': `attachment; filename="oquv-markaz-report-${query.year}-${String(query.month).padStart(2, '0')}.csv"`,
         'x-content-type-options': 'nosniff',
         'cache-control': 'no-store',
       },

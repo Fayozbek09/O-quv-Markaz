@@ -126,7 +126,7 @@ export function CsvImportDialog({ open, onClose }: { open: boolean; onClose: () 
           </Button>
           <a
             href={templateHref}
-            download="ustozly-students-template.csv"
+            download="oquv-markaz-students-template.csv"
             className="text-[13px] text-brand-600 hover:underline"
           >
             {t('students.downloadTemplate')}

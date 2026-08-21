@@ -13,16 +13,16 @@ export type LegalDocument = { intro: string; sections: LegalSection[] };
 export const PRIVACY: Record<AppLocale, LegalDocument> = {
   en: {
     intro:
-      'Ustozly is a record-keeping tool for private tutors. This page explains what data the service stores, why, and what you can do about it.',
+      "O'quv Markaz is a management platform for education centres. This page explains what data the service stores, why, and what you can do about it.",
     sections: [
       {
         heading: 'Who controls the data',
         paragraphs: [
-          'The teacher who creates a workspace is the controller of the student records inside it. Ustozly processes that data on the teacher’s behalf and does not use it for any other purpose.',
+          "The education centre that registers is the controller of the student records inside its workspace. O'quv Markaz processes that data on the centre’s behalf and does not use it for any other purpose.",
         ],
       },
       {
-        heading: 'What we store about you (the teacher)',
+        heading: 'What we store about you (the account holder)',
         bullets: [
           'Your phone number or email address, used to sign in and to send verification codes.',
           'Your name, and optionally a photo, teaching subject, bio, language and timezone.',
@@ -40,7 +40,7 @@ export const PRIVACY: Record<AppLocale, LegalDocument> = {
           'Attendance records, lesson history, charges and payments.',
         ],
         paragraphs: [
-          'Only enter what you need. Ustozly does not require a student’s email, birth date or photo, and the service works fully without them.',
+          "Only enter what you need. O'quv Markaz does not require a student’s email, birth date or photo, and the service works fully without them.",
         ],
       },
       {
@@ -81,16 +81,16 @@ export const PRIVACY: Record<AppLocale, LegalDocument> = {
   },
   uz: {
     intro:
-      "Ustozly — repetitorlar uchun hisob yuritish vositasi. Bu sahifada xizmat qanday ma'lumotni, nima uchun saqlashi va siz nima qila olishingiz tushuntiriladi.",
+      "O'quv Markaz — o'quv markazlar uchun boshqaruv platformasi. Bu sahifada xizmat qanday ma'lumotni, nima uchun saqlashi va siz nima qila olishingiz tushuntiriladi.",
     sections: [
       {
         heading: "Ma'lumotni kim nazorat qiladi",
         paragraphs: [
-          "Ish maydonini yaratgan ustoz undagi o'quvchi yozuvlarining egasi hisoblanadi. Ustozly bu ma'lumotni ustoz nomidan qayta ishlaydi va boshqa maqsadda ishlatmaydi.",
+          "Ro'yxatdan o'tgan o'quv markaz o'z ish maydonidagi o'quvchi yozuvlarining egasi hisoblanadi. O'quv Markaz bu ma'lumotni markaz nomidan qayta ishlaydi va boshqa maqsadda ishlatmaydi.",
         ],
       },
       {
-        heading: "Siz (ustoz) haqingizda nima saqlanadi",
+        heading: "Siz (hisob egasi) haqingizda nima saqlanadi",
         bullets: [
           "Telefon raqamingiz yoki email manzilingiz — kirish va tasdiqlash kodlarini yuborish uchun.",
           "Ismingiz, ixtiyoriy ravishda rasm, o'qitadigan fan, qisqacha ma'lumot, til va vaqt mintaqasi.",
@@ -108,7 +108,7 @@ export const PRIVACY: Record<AppLocale, LegalDocument> = {
           "Davomat yozuvlari, dars tarixi, hisob-kitoblar va to'lovlar.",
         ],
         paragraphs: [
-          "Faqat kerakli ma'lumotni kiriting. Ustozly o'quvchining emaili, tug'ilgan sanasi yoki rasmini talab qilmaydi va ularsiz ham to'liq ishlaydi.",
+          "Faqat kerakli ma'lumotni kiriting. O'quv Markaz o'quvchining emaili, tug'ilgan sanasi yoki rasmini talab qilmaydi va ularsiz ham to'liq ishlaydi.",
         ],
       },
       {
@@ -149,16 +149,16 @@ export const PRIVACY: Record<AppLocale, LegalDocument> = {
   },
   ru: {
     intro:
-      'Ustozly — инструмент учёта для частных преподавателей. На этой странице описано, какие данные хранит сервис, зачем и что вы можете с ними сделать.',
+      "O'quv Markaz — платформа управления учебными центрами. На этой странице описано, какие данные хранит сервис, зачем и что вы можете с ними сделать.",
     sections: [
       {
         heading: 'Кто контролирует данные',
         paragraphs: [
-          'Преподаватель, создавший рабочее пространство, является владельцем записей об учениках в нём. Ustozly обрабатывает эти данные от имени преподавателя и не использует их для других целей.',
+          "Зарегистрировавшийся учебный центр является владельцем записей об учениках в своём рабочем пространстве. O'quv Markaz обрабатывает эти данные от имени центра и не использует их для других целей.",
         ],
       },
       {
-        heading: 'Что мы храним о вас (преподавателе)',
+        heading: 'Что мы храним о вас (владельце аккаунта)',
         bullets: [
           'Номер телефона или email — для входа и отправки кодов подтверждения.',
           'Ваше имя, по желанию фото, преподаваемый предмет, описание, язык и часовой пояс.',
@@ -176,7 +176,7 @@ export const PRIVACY: Record<AppLocale, LegalDocument> = {
           'Посещаемость, история уроков, начисления и платежи.',
         ],
         paragraphs: [
-          'Вводите только необходимое. Ustozly не требует email, даты рождения или фото ученика и полностью работает без них.',
+          "Вводите только необходимое. O'quv Markaz не требует email, даты рождения или фото ученика и полностью работает без них.",
         ],
       },
       {
@@ -220,12 +220,12 @@ export const PRIVACY: Record<AppLocale, LegalDocument> = {
 export const TERMS: Record<AppLocale, LegalDocument> = {
   en: {
     intro:
-      'These terms describe what Ustozly provides and what is expected of you when you use it.',
+      "These terms describe what O'quv Markaz provides and what is expected of you when you use it.",
     sections: [
       {
         heading: 'The service',
         paragraphs: [
-          'Ustozly helps a private tutor keep track of students, groups, lessons, attendance and payments. It is a record-keeping tool. It does not process tuition payments between you and your students, and it does not act as a marketplace.',
+          "O'quv Markaz helps an education centre keep track of students, groups, lessons, attendance, payments and payroll. It is a management and record-keeping tool. It does not process tuition payments between the centre and its students, and it does not act as a marketplace.",
         ],
       },
       {
@@ -271,12 +271,12 @@ export const TERMS: Record<AppLocale, LegalDocument> = {
   },
   uz: {
     intro:
-      "Bu shartlar Ustozly nimani taqdim etishini va undan foydalanishda sizdan nima kutilishini tavsiflaydi.",
+      "Bu shartlar O'quv Markaz nimani taqdim etishini va undan foydalanishda sizdan nima kutilishini tavsiflaydi.",
     sections: [
       {
         heading: 'Xizmat',
         paragraphs: [
-          "Ustozly repetitorga o'quvchilar, guruhlar, darslar, davomat va to'lovlarni kuzatishga yordam beradi. Bu hisob yuritish vositasi. U siz bilan o'quvchilaringiz o'rtasidagi to'lovlarni amalga oshirmaydi va marketplace emas.",
+          "O'quv Markaz o'quv markazga o'quvchilar, guruhlar, darslar, davomat, to'lovlar va maoshlarni kuzatishga yordam beradi. Bu boshqaruv va hisob yuritish vositasi. U markaz bilan o'quvchilar o'rtasidagi to'lovlarni amalga oshirmaydi va marketplace emas.",
         ],
       },
       {
@@ -322,12 +322,12 @@ export const TERMS: Record<AppLocale, LegalDocument> = {
   },
   ru: {
     intro:
-      'Эти условия описывают, что предоставляет Ustozly и что ожидается от вас при использовании сервиса.',
+      "Эти условия описывают, что предоставляет O'quv Markaz и что ожидается от вас при использовании сервиса.",
     sections: [
       {
         heading: 'Сервис',
         paragraphs: [
-          'Ustozly помогает частному преподавателю вести учёт учеников, групп, уроков, посещаемости и платежей. Это инструмент учёта. Он не проводит платежи между вами и вашими учениками и не является маркетплейсом.',
+          "O'quv Markaz помогает учебному центру вести учёт учеников, групп, уроков, посещаемости, платежей и зарплат. Это инструмент управления и учёта. Он не проводит платежи между центром и учениками и не является маркетплейсом.",
         ],
       },
       {

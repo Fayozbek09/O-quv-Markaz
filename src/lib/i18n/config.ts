@@ -1,7 +1,7 @@
 export const LOCALES = ['uz', 'ru', 'en'] as const;
 export type AppLocale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: AppLocale = 'uz';
-export const LOCALE_COOKIE = 'ustozly_locale';
+export const LOCALE_COOKIE = 'omarkaz_locale';
 
 export const LOCALE_LABEL: Record<AppLocale, string> = {
   uz: "O'zbekcha",
