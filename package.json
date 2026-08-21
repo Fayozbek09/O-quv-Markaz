@@ -2,7 +2,7 @@
   "name": "oquv-markaz",
   "version": "0.1.0",
   "private": true,
-  "description": "O'quv Markaz \u2014 multi-tenant education-centre management platform",
+  "description": "O'quv Markaz — multi-tenant education-centre management platform",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
@@ -22,7 +22,8 @@
     "e2e": "playwright test",
     "admin:create": "tsx scripts/create-admin.ts",
     "subscriptions:remind": "tsx scripts/subscription-cron.ts",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

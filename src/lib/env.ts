@@ -39,6 +39,13 @@ const schema = z.object({
    * Human-verification challenge on registration and password reset. `none`
    * keeps rate limiting as the only defence, which is a supported way to run.
    */
+  /**
+   * Bearer token the scheduled subscription job must present. Set by the host
+   * (Vercel injects it automatically into its cron requests). Empty means the
+   * HTTP cron route is switched off entirely rather than left open.
+   */
+  CRON_SECRET: z.string().default(''),
+
   CAPTCHA_PROVIDER: z.enum(['none', 'turnstile', 'hcaptcha', 'recaptcha']).default('none'),
   CAPTCHA_SITE_KEY: z.string().default(''),
   CAPTCHA_SECRET_KEY: z.string().default(''),

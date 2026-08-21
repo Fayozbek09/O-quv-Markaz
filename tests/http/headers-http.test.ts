@@ -265,3 +265,34 @@ describe('error pages', () => {
     expect([413, 422]).toContain(res.status);
   });
 });
+
+/**
+ * The scheduled subscription job is reachable over HTTP so a serverless host
+ * can call it. That makes it an internet-facing endpoint which rolls
+ * subscription states and sends messages, so the interesting tests are the ones
+ * where it refuses.
+ */
+describe('the subscription cron endpoint', () => {
+  it('refuses an unauthenticated call', async () => {
+    const res = await fetch(`${BASE_URL}/api/cron/subscriptions`, { redirect: 'manual' });
+    // 503 when no CRON_SECRET is configured, 401 when one is and no token was
+    // offered. Either way it does not run, and it never returns 200.
+    expect([401, 503]).toContain(res.status);
+  });
+
+  it('refuses a wrong bearer token', async () => {
+    const res = await fetch(`${BASE_URL}/api/cron/subscriptions`, {
+      headers: { authorization: 'Bearer not-the-secret' },
+      redirect: 'manual',
+    });
+    expect([401, 503]).toContain(res.status);
+  });
+
+  it('is not reachable with a signed-in centre session either', async () => {
+    const res = await fetch(`${BASE_URL}/api/cron/subscriptions`, {
+      headers: { authorization: 'Bearer ' },
+      redirect: 'manual',
+    });
+    expect(res.status).not.toBe(200);
+  });
+});
