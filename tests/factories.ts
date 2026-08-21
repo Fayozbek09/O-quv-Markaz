@@ -150,6 +150,10 @@ export async function makeLesson(tenant: Tenant, groupId: string, startsAt = new
 export async function truncateAll() {
   await db.$executeRawUnsafe(`
     TRUNCATE TABLE
+      -- platform_admins has no foreign key to an organization, so CASCADE never
+      -- reached it: a suite that created one left it behind for the next, and
+      -- the second run collided on the unique username.
+      admin_sessions, platform_admins,
       outbound_messages, telegram_link_tokens, telegram_accounts, webhook_events,
       audit_logs, rate_limit_counters, otp_codes, notifications,
       notification_preferences, billing_intents, subscriptions,

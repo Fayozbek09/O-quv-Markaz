@@ -34,7 +34,16 @@ export const POST = publicRoute(async (request: Request) => {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash: await hashPassword(body.password) },
+    data: {
+      passwordHash: await hashPassword(body.password),
+      // The person has just proved control of the phone or e-mail and chosen
+      // their own secret, so the forced-change gate and the temporary-credential
+      // expiry both lift — exactly as they do in /api/auth/change-password.
+      // Leaving `credentialsExpireAt` set would lock out the one group that
+      // most needs this route: someone whose issued password expired unused.
+      mustChangePassword: false,
+      credentialsExpireAt: null,
+    },
   });
 
   // A password reset invalidates every existing session, everywhere.

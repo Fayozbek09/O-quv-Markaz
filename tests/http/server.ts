@@ -66,6 +66,17 @@ export async function setup() {
   const testEnv: Record<string, string> = {};
   config({ path: '.env.test', processEnv: testEnv });
 
+  /*
+   * Bring the test database up to the schema before anything reads it. Adding a
+   * migration and forgetting this step surfaces as `column … does not exist`
+   * halfway through an unrelated suite, which reads like a broken test rather
+   * than a stale database — it cost a debugging session more than once.
+   */
+  execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
+    env: { ...process.env, ...testEnv },
+    stdio: 'pipe',
+  });
+
   ensureProductionBuild();
 
   child = spawn('npx', ['next', 'start', '-p', String(PORT)], {

@@ -137,7 +137,11 @@ describe('signed file URLs', () => {
     const sig = params.get('sig') as string;
 
     expect(verifyFileSignature(fileId, String(Number(exp) + 86_400_000), sig)).toBe(false);
-    expect(verifyFileSignature(fileId, exp, `${sig.slice(0, -1)}0`)).toBe(false);
+    // Flip the last hex digit to one it cannot already be — appending a fixed
+    // '0' left this passing a *valid* signature back one run in sixteen.
+    const flipped = `${sig.slice(0, -1)}${sig.endsWith('0') ? '1' : '0'}`;
+    expect(flipped).not.toBe(sig);
+    expect(verifyFileSignature(fileId, exp, flipped)).toBe(false);
     expect(verifyFileSignature(fileId, exp, null)).toBe(false);
     expect(verifyFileSignature(fileId, null, sig)).toBe(false);
   });

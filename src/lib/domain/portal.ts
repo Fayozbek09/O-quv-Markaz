@@ -21,6 +21,10 @@ export type StudentContext = {
 };
 
 export async function requireStudent(user: SessionUser): Promise<StudentContext> {
+  // Same rule as the staff side: an unchanged temporary password reaches the
+  // change-password screen and nothing else.
+  if (user.mustChangePassword) throw Forbidden('auth.mustChangePassword');
+
   const student = await prisma.student.findFirst({
     where: { userId: user.userId, deletedAt: null },
     select: {
