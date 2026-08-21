@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { productionPreflight, productionWarnings, env } from '@/lib/env';
 
 /**
@@ -130,6 +130,44 @@ describe('Telegram', () => {
 
   it('is content for the bot to be absent entirely', () => {
     expect(productionPreflight(GOOD)).toEqual([]);
+  });
+});
+
+describe('an empty variable means unset, not invalid', () => {
+  /**
+   * A deployment platform hands over `SMS_PROVIDER=""` for a field the
+   * operator left blank in its form. Zod applies `.default()` only for
+   * `undefined`, so without stripping empties the process refused to start with
+   * a validation error naming a variable nobody meant to set. Vercel produces
+   * exactly this when it prefills its environment editor from `.env.example`,
+   * which is the normal way to import a project.
+   */
+  it('lets a blank enum fall back to its default rather than failing to parse', async () => {
+    vi.resetModules();
+    vi.stubEnv('SMS_PROVIDER', '');
+    vi.stubEnv('EMAIL_PROVIDER', '');
+    vi.stubEnv('STORAGE_DRIVER', '');
+    vi.stubEnv('PAYMENT_PROVIDER', '');
+    vi.stubEnv('CAPTCHA_PROVIDER', '');
+
+    // Importing is the test: a bad parse throws at module scope.
+    const mod = await import('@/lib/env');
+    expect(mod.env.SMS_PROVIDER).toBe('console');
+    expect(mod.env.EMAIL_PROVIDER).toBe('console');
+    expect(mod.env.STORAGE_DRIVER).toBe('local');
+    expect(mod.env.PAYMENT_PROVIDER).toBe('manual');
+    expect(mod.env.CAPTCHA_PROVIDER).toBe('none');
+
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('still refuses a genuinely required variable left blank', async () => {
+    vi.resetModules();
+    vi.stubEnv('DATABASE_URL', '');
+    await expect(import('@/lib/env')).rejects.toThrow(/DATABASE_URL/);
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });
 

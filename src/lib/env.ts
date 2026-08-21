@@ -57,7 +57,31 @@ const schema = z.object({
   CLICK_SECRET_KEY: z.string().default(''),
 });
 
-const parsed = schema.safeParse(process.env);
+/**
+ * An unset variable and an empty one are the same thing.
+ *
+ * Zod applies `.default()` only when a key is `undefined`, but a deployment
+ * platform hands over `SMS_PROVIDER=""` for a field the operator left blank in
+ * its form — and an empty string is not a member of the enum, so the process
+ * refuses to start with a validation error naming a variable nobody meant to
+ * set. Vercel does this when it reads `.env.example` to prefill its
+ * environment editor, which is the normal way to import a project.
+ *
+ * Stripping empty values before parsing makes "left blank" mean "use the
+ * default", which is what an operator staring at an empty form field expects.
+ * Genuinely required variables are unaffected: an empty DATABASE_URL was an
+ * error before and is still an error, just a clearer one.
+ */
+function withoutEmpty(source: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined || value.trim() === '') continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+const parsed = schema.safeParse(withoutEmpty(process.env));
 
 if (!parsed.success) {
   // Print the offending keys only — never the values.
