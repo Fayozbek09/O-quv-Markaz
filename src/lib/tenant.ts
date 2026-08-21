@@ -50,6 +50,11 @@ export async function requireOrg(permission?: Permission): Promise<OrgContext> {
   const user = await getSessionUser();
 
   if (user) {
+    // A temporary password gets someone as far as the change-password screen
+    // and no further. The layouts redirect there, but a redirect is a browser
+    // convention, not a control: without this the same session could work the
+    // whole API with the issued password indefinitely.
+    if (user.mustChangePassword) throw Forbidden('auth.mustChangePassword');
     if (!user.activeOrgId || !user.role) throw Forbidden('errors.noWorkspace');
     // A student's data lives behind the portal queries, never behind a staff
     // endpoint, so a student session is refused a tenant context outright.
@@ -108,6 +113,28 @@ export function assertPermission(ctx: OrgContext, permission: Permission): void 
  */
 export const teacherScope = (ctx: OrgContext, field = 'teacherId') =>
   ctx.role === 'TEACHER' && ctx.memberId ? { [field]: ctx.memberId } : {};
+
+/**
+ * The same rule for students, which hang off a teacher through their groups
+ * rather than through a `teacherId` column: a teacher may read a student only
+ * while that student is in a group they teach.
+ *
+ * `students.read` is the permission a teacher needs to take a register at all,
+ * so the permission alone cannot be the boundary — without this fragment the
+ * roll for one class also opened every other student's profile in the centre,
+ * with their parent's phone number, their debt and their payment history.
+ */
+export const studentTeacherScope = (ctx: OrgContext) =>
+  ctx.role === 'TEACHER' && ctx.memberId
+    ? {
+        memberships: {
+          some: {
+            leftAt: null,
+            group: { teacherId: ctx.memberId, deletedAt: null },
+          },
+        },
+      }
+    : {};
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID_RE.test(v);

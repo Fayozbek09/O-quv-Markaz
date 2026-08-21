@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { requireOrg, isUuid } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { isUuid, teacherScope } from '@/lib/tenant';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { getLesson } from '@/lib/domain/lessons';
 import { orgTimezone } from '@/lib/domain/org';
@@ -24,7 +24,7 @@ export default async function AttendancePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'attendance.read');
   const t = await getTranslator();
   const locale = await getLocale();
@@ -73,6 +73,9 @@ export default async function AttendancePage({
     where: {
       organizationId: ctx.orgId,
       deletedAt: null,
+      // The picker must not name classes this person does not teach; opening
+      // one is already a 404, but the list itself was the disclosure.
+      ...teacherScope(ctx),
       startsAt: { gte: from, lt: until },
       status: { not: 'CANCELLED' },
     },

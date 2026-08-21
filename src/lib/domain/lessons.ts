@@ -1,5 +1,5 @@
 import { prisma } from '../db';
-import { scope, findOwned, assertAllOwned, type OrgContext } from '../tenant';
+import { scope, findOwned, assertAllOwned, teacherScope, type OrgContext } from '../tenant';
 import { audit } from '../security/audit';
 import { Conflict, NotFound } from '../errors';
 import { notify, groupStudentUserIds } from '../notifications/notify';
@@ -20,6 +20,8 @@ export async function listLessons(
   return prisma.lesson.findMany({
     where: {
       ...scope.orgLive(ctx),
+      // A teacher's calendar is their own timetable, not the centre's.
+      ...teacherScope(ctx),
       startsAt: { gte: from, lt: until },
       ...(query.groupId ? { groupId: query.groupId } : {}),
     },
@@ -34,7 +36,9 @@ export async function listLessons(
 
 export async function getLesson(ctx: OrgContext, id: string) {
   const lesson = await prisma.lesson.findFirst({
-    where: scope.byId(ctx, id),
+    // The lesson carries its group's roster, so another teacher's class is a
+    // 404 rather than a readable register.
+    where: { ...scope.byId(ctx, id), ...teacherScope(ctx) },
     include: {
       group: {
         include: {
@@ -168,7 +172,7 @@ export async function updateLesson(ctx: OrgContext, id: string, input: LessonInp
     ctx,
     'lesson',
     id,
-    { deletedAt: null },
+    { deletedAt: null, ...teacherScope(ctx) },
   );
   await assertAllOwned(ctx, 'group', [input.groupId]);
 
@@ -188,7 +192,7 @@ export async function updateLesson(ctx: OrgContext, id: string, input: LessonInp
   const moved = before.startsAt.getTime() !== startsAt.getTime();
 
   const res = await prisma.lesson.updateMany({
-    where: scope.byId(ctx, id),
+    where: { ...scope.byId(ctx, id), ...teacherScope(ctx) },
     data: {
       groupId: input.groupId,
       teacherId: input.teacherId ?? null,
@@ -219,7 +223,7 @@ export async function updateLesson(ctx: OrgContext, id: string, input: LessonInp
     entityId: id,
     meta: { moved },
   });
-  return prisma.lesson.findFirst({ where: scope.byId(ctx, id) });
+  return prisma.lesson.findFirst({ where: { ...scope.byId(ctx, id), ...teacherScope(ctx) } });
 }
 
 export async function setLessonStatus(
@@ -231,11 +235,12 @@ export async function setLessonStatus(
     ctx,
     'lesson',
     id,
-    { deletedAt: null },
+    // Cancelling is a teacher permission; cancelling somebody else's class is not.
+    { deletedAt: null, ...teacherScope(ctx) },
   );
 
   const res = await prisma.lesson.updateMany({
-    where: scope.byId(ctx, id),
+    where: { ...scope.byId(ctx, id), ...teacherScope(ctx) },
     data: {
       status: input.status,
       cancelReason: input.status === 'CANCELLED' ? input.cancelReason : null,
@@ -266,7 +271,7 @@ export async function setLessonStatus(
 
 export async function deleteLesson(ctx: OrgContext, id: string) {
   const res = await prisma.lesson.updateMany({
-    where: scope.byId(ctx, id),
+    where: { ...scope.byId(ctx, id), ...teacherScope(ctx) },
     data: { deletedAt: new Date(), status: 'CANCELLED' },
   });
   if (res.count === 0) throw NotFound();

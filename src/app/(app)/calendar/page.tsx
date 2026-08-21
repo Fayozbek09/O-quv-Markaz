@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { teacherScope } from '@/lib/tenant';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { listLessons } from '@/lib/domain/lessons';
 import { orgTimezone } from '@/lib/domain/org';
@@ -45,7 +45,7 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'lessons.read');
   const raw = await searchParams;
   const tz = await orgTimezone(ctx);
@@ -60,7 +60,9 @@ export default async function CalendarPage({
   const [lessons, groups] = await Promise.all([
     listLessons(ctx, { ...range, groupId }, tz),
     prisma.group.findMany({
-      where: { organizationId: ctx.orgId, deletedAt: null, status: 'ACTIVE' },
+      // The filter must offer the same classes the calendar is allowed to show;
+      // listing every group here named another teacher's class in the dropdown.
+      where: { organizationId: ctx.orgId, deletedAt: null, status: 'ACTIVE', ...teacherScope(ctx) },
       select: { id: true, name: true, color: true },
       orderBy: { name: 'asc' },
     }),

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { PERMISSIONS, type Permission } from '@/lib/rbac';
+import { PERMISSIONS, ROLE_PERMISSIONS, type Permission } from '@/lib/rbac';
 import { NAV } from '@/lib/nav';
 
 /**
@@ -73,10 +73,35 @@ describe('staff pages declare the permission they need', () => {
     expect(PERMISSIONS as readonly string[], `${file} names an unknown permission`).toContain(gate);
   });
 
-  it('gates the money pages on something a teacher does not hold', () => {
-    for (const file of ['payments/page.tsx', 'reports/page.tsx', 'finance/page.tsx', 'center/page.tsx']) {
-      expect(gateOf(file), file).not.toBeNull();
+  /**
+   * Naming *a* permission is not enough — it has to be one the wrong role
+   * lacks. `/reception` named `students.read`, which a teacher holds, while its
+   * loader read the day's takings and the full debtor list. The gate existed
+   * and matched its sidebar link; it was simply too weak. This asserts the
+   * strength, not merely the presence.
+   */
+  const MONEY_PAGES = [
+    'payments/page.tsx',
+    'reports/page.tsx',
+    'finance/page.tsx',
+    'center/page.tsx',
+    'reception/page.tsx',
+    'salaries/page.tsx',
+    'expenses/page.tsx',
+  ];
+
+  it.each(MONEY_PAGES)('%s is gated on something a teacher does not hold', (file) => {
+    const gate = gateOf(file) as Permission | null;
+    expect(gate, `${file} has no permission check`).not.toBeNull();
+
+    const teacher = new Set<Permission>(ROLE_PERMISSIONS.TEACHER);
+    // salary.read is a teacher permission, but the salaries page scopes every
+    // row to their own memberId, which the payroll queries enforce.
+    if (file === 'salaries/page.tsx') {
+      expect(gate).toBe('salary.read');
+      return;
     }
+    expect(teacher.has(gate as Permission), `${file} is gated on ${gate}, which a teacher holds`).toBe(false);
   });
 
   /**

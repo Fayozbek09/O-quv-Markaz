@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { loadPage, requirePagePermission } from '@/lib/page';
+import { hasPermission } from '@/lib/tenant';
+import { loadPage, requireOrgPage, requirePagePermission } from '@/lib/page';
 import { prisma } from '@/lib/db';
 import { getGroup } from '@/lib/domain/groups';
 import { currentOrg } from '@/lib/domain/org';
@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ctx = await requireOrg();
+  const ctx = await requireOrgPage();
   requirePagePermission(ctx, 'groups.read');
   const t = await getTranslator();
   const locale = await getLocale();
@@ -36,17 +36,23 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
       take: 15,
       include: { _count: { select: { attendance: true } } },
     }),
-    prisma.student.findMany({
-      where: {
-        organizationId: ctx.orgId,
-        deletedAt: null,
-        status: 'ACTIVE',
-        NOT: { memberships: { some: { groupId: id, leftAt: null } } },
-      },
-      select: { id: true, firstName: true, lastName: true },
-      orderBy: [{ firstName: 'asc' }],
-      take: 300,
-    }),
+    // The picker for "add a student to this group" is the centre's whole roll.
+    // Only someone who may actually place a student gets to see it — a teacher
+    // holds `groups.read` but not `groups.members`, and used to be sent every
+    // student's name to populate a control they could not use.
+    hasPermission(ctx, 'groups.members')
+      ? prisma.student.findMany({
+          where: {
+            organizationId: ctx.orgId,
+            deletedAt: null,
+            status: 'ACTIVE',
+            NOT: { memberships: { some: { groupId: id, leftAt: null } } },
+          },
+          select: { id: true, firstName: true, lastName: true },
+          orderBy: [{ firstName: 'asc' }],
+          take: 300,
+        })
+      : Promise.resolve([]),
   ]);
 
   const money = (v: bigint) => formatMoney(v, group.currency || org.defaultCurrency, INTL_LOCALE[locale]);

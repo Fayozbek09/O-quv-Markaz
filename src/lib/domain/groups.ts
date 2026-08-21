@@ -1,5 +1,5 @@
 import { prisma } from '../db';
-import { scope, findOwned, assertAllOwned, type OrgContext } from '../tenant';
+import { scope, findOwned, assertAllOwned, teacherScope, type OrgContext } from '../tenant';
 import { audit } from '../security/audit';
 import { parseAmountToMinor } from '../money';
 import { Conflict, NotFound } from '../errors';
@@ -13,6 +13,8 @@ export async function listGroups(ctx: OrgContext, includeArchived = false) {
   return prisma.group.findMany({
     where: {
       ...scope.orgLive(ctx),
+      // "View assigned groups" — a teacher's list is the classes they teach.
+      ...teacherScope(ctx),
       ...(includeArchived ? {} : { status: 'ACTIVE' as const }),
     },
     orderBy: [{ status: 'asc' }, { name: 'asc' }],
@@ -25,7 +27,9 @@ export async function listGroups(ctx: OrgContext, includeArchived = false) {
 
 export async function getGroup(ctx: OrgContext, id: string) {
   const group = await prisma.group.findFirst({
-    where: scope.byId(ctx, id),
+    // The roster carries every student's name and phone number, so a group
+    // another teacher runs is a 404 rather than a readable page.
+    where: { ...scope.byId(ctx, id), ...teacherScope(ctx) },
     include: {
       members: {
         where: { leftAt: null },

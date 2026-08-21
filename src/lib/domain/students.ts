@@ -1,5 +1,5 @@
 import { prisma } from '../db';
-import { scope, findOwned, type OrgContext } from '../tenant';
+import { scope, findOwned, studentTeacherScope, type OrgContext } from '../tenant';
 import { audit } from '../security/audit';
 import { assertCanAddStudent } from './plan';
 import { NotFound } from '../errors';
@@ -12,6 +12,8 @@ type ListQuery = z.infer<typeof studentListQuerySchema>;
 export async function listStudents(ctx: OrgContext, query: ListQuery) {
   const where = {
     ...scope.orgLive(ctx),
+    // A teacher's list is their own classes, not the centre roll.
+    ...studentTeacherScope(ctx),
     ...(query.status !== 'ALL' ? { status: query.status } : {}),
     ...(query.groupId
       ? { memberships: { some: { groupId: query.groupId, leftAt: null } } }
@@ -55,7 +57,9 @@ export async function listStudents(ctx: OrgContext, query: ListQuery) {
 
 export async function getStudent(ctx: OrgContext, id: string) {
   const student = await prisma.student.findFirst({
-    where: scope.byId(ctx, id),
+    // A student outside the teacher's classes is a 404, the same answer another
+    // centre's id gets — the reply never confirms that the row exists.
+    where: { ...scope.byId(ctx, id), ...studentTeacherScope(ctx) },
     include: {
       parents: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
       memberships: {

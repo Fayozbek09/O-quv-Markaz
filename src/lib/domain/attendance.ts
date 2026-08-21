@@ -1,5 +1,5 @@
 import { prisma } from '../db';
-import { scope, assertAllOwned, type OrgContext } from '../tenant';
+import { scope, assertAllOwned, teacherScope, type OrgContext } from '../tenant';
 import { audit } from '../security/audit';
 import { NotFound } from '../errors';
 import type { z } from 'zod';
@@ -10,7 +10,9 @@ export async function markAttendance(
   input: z.infer<typeof attendanceMarkSchema>,
 ) {
   const lesson = await prisma.lesson.findFirst({
-    where: scope.byId(ctx, input.lessonId),
+    // A register belongs to the person teaching the lesson. Scoped by org
+    // alone, any teacher in the centre could mark another teacher's class.
+    where: { ...scope.byId(ctx, input.lessonId), ...teacherScope(ctx) },
     include: { group: { include: { members: { where: { leftAt: null } } } } },
   });
   if (!lesson || lesson.deletedAt) throw NotFound();
@@ -75,6 +77,9 @@ export async function attendanceSummary(
       ...scope.org(ctx),
       lesson: {
         startsAt: { gte: range.from, lt: range.until },
+        // A teacher's attendance rate is their own classes'; without this the
+        // figure quietly described the whole centre.
+        ...teacherScope(ctx),
         ...(groupId ? { groupId } : {}),
       },
     },

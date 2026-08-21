@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { requireOrg } from '@/lib/tenant';
-import { requirePagePermission } from '@/lib/page';
+import { requireOrgPage, requirePagePermission } from '@/lib/page';
 import { receptionOverview } from '@/lib/domain/roleDashboards';
 import { orgTimezone, currentOrg } from '@/lib/domain/org';
 import { getLocale, getTranslator } from '@/lib/i18n/server';
@@ -20,8 +19,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /** The desk view: built for speed — search, take payment, place a student. */
 export default async function ReceptionPage() {
-  const ctx = await requireOrg();
-  requirePagePermission(ctx, 'students.read');
+  const ctx = await requireOrgPage();
+  // The desk view is a money screen: it lists the day's takings and every
+  // debtor with what they owe. `students.read` was too weak a gate — a teacher
+  // holds it, and typing the URL showed them the centre's debtors.
+  requirePagePermission(ctx, 'payments.read');
 
   const t = await getTranslator();
   const locale = await getLocale();
