@@ -1,17 +1,18 @@
 import { createHmac, timingSafeEqual, createHash } from 'node:crypto';
 import { env } from '../../env';
 import { minorToHundredths, hundredthsToMinor } from '../../money';
-import type { PaymentProvider } from '../provider';
+import { prisma } from '../../db';
+import { PAYME_ERROR, PAYME_STATE } from '../payme-merchant';
+import type { PaymentProvider, WebhookOutcomeKind, WebhookReply } from '../provider';
 
 /**
- * Payme (paycom.uz) adapter skeleton.
+ * Payme (paycom.uz) adapter.
  *
- * The merchant protocol is JSON-RPC over HTTPS with Basic auth on the merchant
- * endpoint. Filling in `createCheckout`/`fetchStatus` requires PAYME_MERCHANT_ID
- * and PAYME_SECRET_KEY plus a merchant cabinet - see DEPLOYMENT.md.
- *
- * The parts that matter for security are implemented and testable now:
- * constant-time credential comparison and per-event idempotency.
+ * Payme is not a notify-once gateway: it drives a JSON-RPC state machine
+ * against our merchant endpoint. That protocol lives in `../payme-merchant.ts`,
+ * which `/api/billing/webhook` dispatches to; what remains here is the checkout
+ * link, the credential check the generic pipeline and its tests use, the reply
+ * envelope, and reconciliation against our own transaction table.
  *
  * Amounts: Payme quotes **tiyin**, always. The ledger counts so'm for UZS
  * (`CURRENCIES.UZS.minorUnits === 0`), so every amount crossing this boundary
@@ -87,8 +88,53 @@ export const paymeProvider: PaymentProvider = {
     };
   },
 
-  async fetchStatus() {
-    return 'pending';
+  /**
+   * The state machine is ours to keep — Payme expects the merchant to be the
+   * record — so reconciling a pending intent is a read of what their calls
+   * already told us, not a request back to them.
+   */
+  async fetchStatus(providerRef: string) {
+    const intent = await prisma.billingIntent.findUnique({
+      where: { idempotencyKey: providerRef },
+      select: { id: true },
+    });
+    if (!intent) return 'pending';
+
+    const row = await prisma.paymeTransaction.findFirst({
+      where: { intentId: intent.id },
+      orderBy: { createTime: 'desc' },
+      select: { state: true },
+    });
+    if (!row) return 'pending';
+
+    if (row.state === PAYME_STATE.PERFORMED) return 'succeeded';
+    if (row.state === PAYME_STATE.CREATED) return 'pending';
+    return 'canceled';
+  },
+
+  /**
+   * Payme reads JSON-RPC and nothing else, and it treats any non-200 as a
+   * transport fault worth retrying — so a business refusal has to travel inside
+   * the envelope with a 200 around it.
+   */
+  renderReply(result: WebhookOutcomeKind): WebhookReply {
+    const error = (code: number) => ({
+      status: 200,
+      body: { jsonrpc: '2.0', id: null, error: { code, message: 'request refused' } },
+    });
+
+    switch (result.kind) {
+      case 'rejected':
+        return error(PAYME_ERROR.UNAUTHORIZED);
+      case 'unknown_intent':
+        return error(PAYME_ERROR.ORDER_NOT_FOUND);
+      case 'amount_mismatch':
+        return error(PAYME_ERROR.WRONG_AMOUNT);
+      case 'not_settled':
+        return error(PAYME_ERROR.CANNOT_PERFORM);
+      default:
+        return { status: 200, body: { jsonrpc: '2.0', id: null, result: { ok: true } } };
+    }
   },
 };
 

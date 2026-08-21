@@ -303,6 +303,86 @@ describe('click webhook verification', () => {
  * figure on the intent — so a 100x slip in either adapter means either an
  * undercharge at the checkout or a payment that can never settle.
  */
+describe('the reply each gateway can actually read', () => {
+  /**
+   * A correct decision returned in an envelope the gateway does not recognise
+   * is not an acknowledgement. Click looks for `error` and, on Prepare, keeps
+   * `merchant_prepare_id` to send back on Complete — where it also forms part
+   * of the next signature. Answering `{ ok: true }` leaves the payment
+   * unconfirmed on Click's side while our ledger says it settled.
+   */
+  const verification = {
+    ok: true as const,
+    externalId: '900001:1',
+    idempotencyKey: 'intent-abc',
+    outcome: 'succeeded' as const,
+    amountMinor: 300_000n,
+    currency: 'UZS',
+  };
+
+  it('answers Click with its own envelope, and always with a 200', () => {
+    const reply = clickProvider.renderReply(
+      { kind: 'settled' },
+      { verification, intentId: 'intent-uuid' },
+    );
+    expect(reply.status).toBe(200);
+    expect(reply.body).toMatchObject({
+      click_trans_id: 900001,
+      merchant_trans_id: 'intent-abc',
+      error: 0,
+      error_note: 'Success',
+      merchant_confirm_id: 'intent-uuid',
+    });
+  });
+
+  it('returns a prepare id on the reservation, and no confirm id', () => {
+    const reply = clickProvider.renderReply(
+      { kind: 'reserved' },
+      { verification, intentId: 'intent-uuid' },
+    );
+    const body = reply.body as Record<string, unknown>;
+    expect(body.error).toBe(0);
+    expect(body.merchant_prepare_id).toBe('intent-uuid');
+    expect(body).not.toHaveProperty('merchant_confirm_id');
+  });
+
+  it("reports a bad signature as Click's own -1, not as an HTTP 401", () => {
+    const reply = clickProvider.renderReply({ kind: 'rejected', reason: 'bad_signature' }, {});
+    expect(reply.status).toBe(200);
+    expect(reply.body).toMatchObject({ error: -1, error_note: 'SIGN CHECK FAILED' });
+  });
+
+  it('reports an amount mismatch as -2 rather than accepting it', () => {
+    const reply = clickProvider.renderReply({ kind: 'amount_mismatch' }, { verification });
+    expect(reply.body).toMatchObject({ error: -2 });
+  });
+
+  it('reports an unknown order as -5', () => {
+    const reply = clickProvider.renderReply({ kind: 'unknown_intent' }, { verification });
+    expect(reply.body).toMatchObject({ error: -5 });
+  });
+
+  it('never echoes an id the signature did not cover', () => {
+    // With no verified body there is nothing to echo, and the reply says so
+    // rather than inventing a transaction id.
+    const reply = clickProvider.renderReply({ kind: 'rejected', reason: 'bad_body' }, {});
+    expect(reply.body).toMatchObject({ click_trans_id: null, merchant_trans_id: null });
+  });
+
+  it('answers a duplicate as a success, so Click stops retrying a settled charge', () => {
+    const reply = clickProvider.renderReply(
+      { kind: 'duplicate' },
+      { verification, intentId: 'intent-uuid' },
+    );
+    expect(reply.body).toMatchObject({ error: 0, merchant_confirm_id: 'intent-uuid' });
+  });
+
+  it('the manual provider still refuses outright', () => {
+    const reply = manualProvider.renderReply({ kind: 'rejected', reason: 'provider_not_configured' }, {});
+    expect(reply.status).toBe(401);
+  });
+});
+
 describe('amounts survive the round trip to each gateway', () => {
   const ONE_MONTH_MINOR = 300_000n; // 300 000 so'm
 

@@ -1,19 +1,27 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { paymentProvider } from '@/lib/payments';
+import { handlePaymeRequest } from '@/lib/payments/payme-merchant';
+import { env } from '@/lib/env';
 import { applySuccessfulPayment } from '@/lib/domain/subscription';
 import { sha256 } from '@/lib/crypto';
 import { audit } from '@/lib/security/audit';
 
 /**
- * Payment webhook.
+ * Payment webhook. One URL, because a merchant cabinet is configured with one.
  *
- * Rules, in order:
+ * Payme is dispatched away immediately: it is not a notify-once gateway but a
+ * JSON-RPC state machine, and it is answered by `lib/payments/payme-merchant`.
+ *
+ * Everything else runs the generic pipeline, in order:
  *   1. the raw body must carry a valid provider signature/credential;
  *   2. the event id must not have been processed before (idempotency);
  *   3. the amount must match the intent the event claims to settle;
  *   4. only then is the subscription activated.
- * A browser callback never reaches this path, and never activates a plan.
+ *
+ * A browser callback never reaches this path, and never activates a plan. The
+ * reply is rendered by the adapter, because each gateway reads a different
+ * envelope and a shape it does not recognise is not an acknowledgement.
  */
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -24,7 +32,24 @@ export async function POST(request: Request) {
     headers[key.toLowerCase()] = value;
   });
 
+  if (env.PAYMENT_PROVIDER === 'payme') {
+    const reply = await handlePaymeRequest({
+      rawBody: raw,
+      authorization: headers['authorization'],
+    });
+    // Always 200: Payme reads the envelope and retries anything else.
+    return NextResponse.json(reply, { status: 200, headers: { 'cache-control': 'no-store' } });
+  }
+
   const verification = await paymentProvider.verifyWebhook({ rawBody: raw, headers });
+
+  const reply = (result: Parameters<typeof paymentProvider.renderReply>[0], intentId?: string) => {
+    const rendered = paymentProvider.renderReply(result, { verification, intentId });
+    return NextResponse.json(rendered.body, {
+      status: rendered.status,
+      headers: { 'cache-control': 'no-store' },
+    });
+  };
 
   if (!verification.ok) {
     await prisma.webhookEvent
@@ -38,7 +63,7 @@ export async function POST(request: Request) {
       })
       .catch(() => undefined);
     await audit({ action: 'billing.webhook.rejected', outcome: 'denied', meta: { reason: verification.reason } });
-    return NextResponse.json({ error: 'invalid_signature' }, { status: 401 });
+    return reply({ kind: 'rejected', reason: verification.reason });
   }
 
   try {
@@ -52,7 +77,11 @@ export async function POST(request: Request) {
     });
   } catch {
     // Already processed - acknowledge without repeating the side effects.
-    return NextResponse.json({ ok: true, duplicate: true });
+    const seen = await prisma.billingIntent.findUnique({
+      where: { idempotencyKey: verification.idempotencyKey },
+      select: { id: true },
+    });
+    return reply({ kind: 'duplicate' }, seen?.id);
   }
 
   const intent = await prisma.billingIntent.findUnique({
@@ -60,7 +89,7 @@ export async function POST(request: Request) {
   });
   if (!intent) {
     await audit({ action: 'billing.webhook.unknown_intent', outcome: 'failure' });
-    return NextResponse.json({ ok: true });
+    return reply({ kind: 'unknown_intent' });
   }
 
   // Trusting the provider's amount over our own record would let a tampered
@@ -77,7 +106,7 @@ export async function POST(request: Request) {
       entityType: 'billing_intent',
       entityId: intent.id,
     });
-    return NextResponse.json({ error: 'amount_mismatch' }, { status: 400 });
+    return reply({ kind: 'amount_mismatch' }, intent.id);
   }
 
   // A multi-phase provider reserves before it settles. The reservation is
@@ -87,7 +116,7 @@ export async function POST(request: Request) {
       where: { provider: paymentProvider.name, externalId: verification.externalId },
       data: { processedAt: new Date() },
     });
-    return NextResponse.json({ ok: true, pending: true });
+    return reply({ kind: 'reserved' }, intent.id);
   }
 
   if (verification.outcome !== 'succeeded') {
@@ -104,7 +133,7 @@ export async function POST(request: Request) {
       },
       data: { status: 'FAILED', failureReason: verification.outcome },
     });
-    return NextResponse.json({ ok: true });
+    return reply({ kind: 'not_settled', outcome: verification.outcome }, intent.id);
   }
 
   const now = new Date();
@@ -131,5 +160,5 @@ export async function POST(request: Request) {
     paidAt: now,
   });
 
-  return NextResponse.json({ ok: true });
+  return reply({ kind: 'settled' }, intent.id);
 }

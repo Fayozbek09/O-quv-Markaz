@@ -47,6 +47,22 @@ export type WebhookVerification =
     };
 
 /**
+ * What the webhook pipeline decided about an event. Rendered into whatever
+ * shape the gateway's own protocol demands — a provider that gets an
+ * unrecognised reply retries, or marks the merchant as failing.
+ */
+export type WebhookOutcomeKind =
+  | { kind: 'rejected'; reason: string }
+  | { kind: 'duplicate' }
+  | { kind: 'unknown_intent' }
+  | { kind: 'amount_mismatch' }
+  | { kind: 'settled' }
+  | { kind: 'reserved' }
+  | { kind: 'not_settled'; outcome: 'failed' | 'canceled' };
+
+export type WebhookReply = { status: number; body: unknown };
+
+/**
  * Every payment provider implements this. Nothing in the app marks a
  * subscription active from a browser response - only `verifyWebhook` (or an
  * explicit server-side `fetchStatus`) can do that.
@@ -72,4 +88,17 @@ export interface PaymentProvider {
 
   /** Server-side source of truth, used to reconcile a pending intent. */
   fetchStatus(providerRef: string): Promise<'pending' | 'succeeded' | 'failed' | 'canceled'>;
+
+  /**
+   * Renders the HTTP reply this gateway's protocol requires.
+   *
+   * Returning `{ ok: true }` to a gateway that expects its own envelope is the
+   * quiet way an integration fails: the money moves on the payer's side, the
+   * gateway never sees an acknowledgement it recognises, and it retries or
+   * reverses. Each adapter therefore owns its own reply.
+   */
+  renderReply(
+    result: WebhookOutcomeKind,
+    context: { verification?: WebhookVerification; intentId?: string },
+  ): WebhookReply;
 }

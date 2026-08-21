@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { env } from '../../env';
 import { minorToMajorString, parseAmountToMinor } from '../../money';
-import type { PaymentProvider } from '../provider';
+import type { PaymentProvider, WebhookOutcomeKind, WebhookReply } from '../provider';
 
 /**
  * Click (click.uz) adapter.
@@ -196,5 +196,52 @@ export const clickProvider: PaymentProvider = {
     // deployment step rather than something to guess at here. Reconciliation
     // therefore relies on the signed callback.
     return 'pending';
+  },
+
+  /**
+   * Click reads the reply, not the HTTP status: it looks for `error`, and on
+   * Prepare it stores `merchant_prepare_id` to send back on Complete. A bare
+   * `{ ok: true }` is not an acknowledgement to Click — the payment stays
+   * unconfirmed on their side while our ledger says it settled.
+   *
+   * The echoed ids come from the verified body, so a reply can never name a
+   * transaction the signature did not cover.
+   */
+  renderReply(result: WebhookOutcomeKind, { verification, intentId }): WebhookReply {
+    const clickTransId = verification?.ok ? verification.externalId.split(':')[0] : null;
+    const merchantTransId = verification?.ok ? verification.idempotencyKey : null;
+
+    const envelope = (error: number, note: string, extra: Record<string, unknown> = {}) => ({
+      status: 200,
+      body: {
+        click_trans_id: clickTransId ? Number(clickTransId) : null,
+        merchant_trans_id: merchantTransId,
+        error,
+        error_note: note,
+        ...extra,
+      },
+    });
+
+    switch (result.kind) {
+      case 'rejected':
+        // -1 SIGN CHECK FAILED is the code Click documents for this.
+        return envelope(-1, 'SIGN CHECK FAILED');
+      case 'unknown_intent':
+        return envelope(-5, 'User does not exist');
+      case 'amount_mismatch':
+        return envelope(-2, 'Incorrect parameter amount');
+      case 'not_settled':
+        return envelope(-9, 'Transaction cancelled');
+      case 'reserved':
+        // Prepare accepted. Click keeps merchant_prepare_id and returns it on
+        // the Complete call, where it also forms part of the signature.
+        return envelope(0, 'Success', { merchant_prepare_id: intentId ?? merchantTransId });
+      case 'duplicate':
+      case 'settled':
+        return envelope(0, 'Success', {
+          merchant_prepare_id: intentId ?? merchantTransId,
+          merchant_confirm_id: intentId ?? merchantTransId,
+        });
+    }
   },
 };

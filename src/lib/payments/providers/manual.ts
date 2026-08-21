@@ -1,4 +1,4 @@
-import type { PaymentProvider } from '../provider';
+import type { PaymentProvider, WebhookOutcomeKind, WebhookReply } from '../provider';
 
 /**
  * The default provider on a fresh deployment. It never reports a successful
@@ -20,5 +20,12 @@ export const manualProvider: PaymentProvider = {
 
   async fetchStatus() {
     return 'pending';
+  },
+
+  renderReply(result: WebhookOutcomeKind): WebhookReply {
+    // Nothing calls this deployment's webhook legitimately, so the reply only
+    // has to be honest about the refusal.
+    if (result.kind === 'rejected') return { status: 401, body: { error: result.reason } };
+    return { status: 200, body: { ok: true } };
   },
 };
